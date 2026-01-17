@@ -1,0 +1,3 @@
+[submodule "scheduleretriever"]
+	path = scheduleretriever
+	url = git@github.com:Auzzy/movie-schedule-retriever.git
