@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='utf-8' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
+    <script>
+        async function request(method, path, bodyJson) {
+            const url = `http://127.0.0.1:8000/${path}`;
+            try {
+                const response = await fetch(url, {method: method, body: JSON.stringify(bodyJson)});
+                if (!response.ok) {
+                    throw new Error(`Response status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error(error.message);
+            }
+            return {};
+        }
+        async function get(path) {
+            const result = await request("GET", path);
+            return result;
+        }
+
+        async function put(path, bodyJson) {
+            const result = await request("PUT", path, bodyJson);
+            return result;
+        }
+
+        async function hideMovie(title) {
+            const result = put(`movies/${encodeURIComponent(title)}/hide`);
+            return result;
+        }
+
+        async function showMovie(title) {
+            const result = put(`movies/${encodeURIComponent(title)}/show`);
+            return result;
+        }
+
+        async function getMovieSchedule(theater, title, startDate, endDate) {
+            const result = await get(`showtimes/${encodeURIComponent(theater)}/${encodeURIComponent(title)}/${startDate}/${endDate}`);
+            return result;
+        }
+
+        async function getSchedule(theater, startDate, endDate) {
+            const result = await get(`showtimes/${encodeURIComponent(theater)}/${startDate}/${endDate}`);
+            return result;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                contentHeight: "auto",
+                nextDayThreshold: '2:00:00',
+                allDaySlot: false,
+                slotMinTime: '09:00:00',
+                fixedWeekCount: false,
+                headerToolbar: {
+                    left: 'prev,next',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                datesSet: function(dateInfo) {
+                    function showtimesToEvents(showtimes) {
+                        return showtimes.map((showtime) => {
+                            var title = showtime["title"];
+                            if (showtime["format"] != "Standard") {
+                                title = `[${showtime["format"]}] ${title}`
+                            }
+                            return {
+                                "title": title,
+                                "start": `${showtime["startDate"]}T${showtime["startTime"]}`,
+                                "end": `${showtime["endDate"]}T${showtime["endTime"]}`
+                            };
+                        });
+                    }
+
+                    function loadShowtimesCallback(result) {
+                        var allShowtimes = result["showtimes"];
+                        var allEvents = showtimesToEvents(allShowtimes);
+                        var displayInfo = result["display"];
+
+                        var showtimesByTitle = Object.groupBy(allShowtimes, (evt) => evt["title"]);
+                        Object.entries(showtimesByTitle).forEach(([title, showtimes]) => {
+                            calendar.addEventSource({
+                                "id": title,
+                                "events": showtimesToEvents(showtimes),
+                                "backgroundColor": displayInfo[title]["background_color"],
+                                "textColor": displayInfo[title]["text_color"]
+                                });
+                            });
+
+                        var minStartHour = allEvents.map((e) => new Date(e.start).getHours()).toSorted()[0]
+                        calendar.setOption('slotMinTime', `${minStartHour}:00:00`);
+
+                        calendar.render();
+
+                        var movieListEl = document.getElementById("movie-list");
+                        movieListEl.innerHTML = "";
+                        Object.entries(displayInfo).toSorted().forEach(([title, display], i) => {
+                            var entry = document.createElement('div');
+                            entry.dataset.title = title;
+                            entry.style.border = `thin solid ${display["background_color"]}`;
+                            entry.style.borderRadius = "5px";
+                            entry.style.margin = "5px";
+                            entry.style.padding = "5px";
+                            entry.style.cursor = "pointer";
+                            if (display["visible"] === true) {
+                                entry.style.background = display["background_color"];
+                                entry.style.color = display["text_color"];
+                            } else {
+                                entry.style.background = "white";
+                                entry.style.color = display["background_color"];
+                            }
+
+                            entry.appendChild(document.createTextNode(title));
+                            entry.addEventListener("click", function (e) {
+                                var title = e.currentTarget.innerText;
+                                var titleShowtimes = calendar.getEvents().filter((evt) => evt.title === title);
+                                var titleEventSource = calendar.getEventSourceById(title);
+                                var li = movieListEl.querySelector(`[data-title="${title}"]`);
+                                if (titleEventSource === null) {
+                                    entry.style.background = display["background_color"];
+                                    entry.style.color = display["text_color"];
+
+                                    var startDate = calendar.formatIso(calendar.view.activeStart, true);
+                                    var endDate = calendar.formatIso(calendar.view.activeEnd, true);
+                                    showMovie(title);
+
+                                    getMovieSchedule("AMC Methuen", title, startDate, endDate).then(function(result) {
+                                        calendar.addEventSource({
+                                            "id": title,
+                                            "events": showtimesToEvents(result["showtimes"]),
+                                            "backgroundColor": displayInfo[title]["background_color"],
+                                            "textColor": displayInfo[title]["text_color"]
+                                        });
+                                    });
+                                } else {
+                                    entry.style.background = "white";
+                                    entry.style.color = display["background_color"];
+
+                                    hideMovie(title);
+                                    titleEventSource.remove();
+                                }
+                            });
+                            movieListEl.appendChild(entry);
+                        });
+                    };
+
+                    var endStr = calendar.formatIso(new Date(dateInfo.end.setDate(dateInfo.end.getDate() - 1)));
+                    var startStr = calendar.formatIso(dateInfo.start, true);
+
+                    calendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
+                    getSchedule("AMC Methuen", startStr, endStr).then(loadShowtimesCallback);
+                }
+            });
+            calendar.render();
+        });
+    </script>
+    </head>
+    <body>
+        <div style="display: flex;">
+            <div style="flex: 10%; padding-right: 50px">
+                <div id="movie-list"></div>
+            </div>
+            <div style="flex: 90%">
+                <div id='calendar'></div>
+            </div>
+        </div>
+    </body>
+</html>
