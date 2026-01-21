@@ -5,7 +5,7 @@
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
     <script>
         async function request(method, path, bodyJson) {
-            const url = `http://127.0.0.1:8000/${path}`;
+            const url = `/${path}`;
             try {
                 const response = await fetch(url, {method: method, body: JSON.stringify(bodyJson)});
                 if (!response.ok) {
