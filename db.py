@@ -1,41 +1,63 @@
+import os
 from datetime import datetime
 import sqlite3
 
-_DB_FILENAME = "metadata.db"
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+
+def _connect():
+    global _PH
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        _PH = "%s"
+        return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+    else:
+        _PH = "?"
+        db = sqlite3.connect("metadata.db")
+        db.row_factory = sqlite3.Row
+        return db
+
 
 def load_visibility():
-    db = sqlite3.connect(_DB_FILENAME)
-    db.row_factory = sqlite3.Row
+    db = _connect()
     cur = db.cursor()
     cur.execute("SELECT title, hidden FROM moviemetadata")
+    result = cur.fetchall()
+    db.close()
 
-    return {row["title"]: row["hidden"] == 0 for row in cur.fetchall()}
+    return {row["title"]: row["hidden"] == 0 for row in result}
     
 
 def hide_movie(title):
-    db = sqlite3.connect(_DB_FILENAME)
+    db = _connect()
     cur = db.cursor()
     cur.execute(
-        "INSERT INTO moviemetadata(title, hidden) VALUES(:title, TRUE) ON CONFLICT(title) DO UPDATE SET hidden = TRUE",
-        {"title": title}
+        f"INSERT INTO moviemetadata(title, hidden) VALUES({_PH}, 1) ON CONFLICT(title) DO UPDATE SET hidden = 1",
+        (title,)
     )
 
     db.commit()
+    db.close()
 
 def show_movie(title):
-    db = sqlite3.connect(_DB_FILENAME)
+    db = _connect()
     cur = db.cursor()
-    cur.execute("UPDATE moviemetadata SET hidden = FALSE WHERE title = :title", {"title": title})
+    cur.execute(f"UPDATE moviemetadata SET hidden = 0 WHERE title = {_PH}", (title,))
     db.commit()
+    db.close()
 
 def _init_db():
-    db = sqlite3.connect(_DB_FILENAME)
+    db = _connect()
     cur = db.cursor()
 
     cur.execute("""CREATE TABLE IF NOT EXISTS moviemetadata (
         title TEXT PRIMARY KEY,
-        hidden INTEGER DEFAULT FALSE
+        hidden INTEGER DEFAULT 0
     )""")
+
+    db.commit()
+    db.close()
 
 
 _init_db()
