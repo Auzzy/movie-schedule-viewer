@@ -1,11 +1,15 @@
 import itertools
-from datetime import date
+import sys
+from datetime import date, timedelta
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from scheduleretriever.retriever import db as retrieverdb
+sys.path.append("scheduleretriever")
+from retriever import db as retrieverdb
+from retriever.fandango_json import load_schedules_by_day
+from retriever.schedule import THEATER_SLUG_DICT, Filter, FullSchedule
 import db as viewerdb
 
 
@@ -103,3 +107,22 @@ def request_hide_movie(title):
 def request_show_movie(title):
     viewerdb.show_movie(title)
     return {}
+
+
+@app.get("/update-schedule")
+def scan():
+    # Should these be configurable via env vars?
+    theater = "AMC Methuen"  # Will likely expand to THEATER_SLUG_DICT.keys() once I implement theater switching into the app.
+    date_range = (date.today(), date.today() + timedelta(weeks=4))
+    
+    print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
+
+    schedules_by_day = load_schedules_by_day(theater, None, date_range, Filter.empty(), quiet=True)
+    if not schedules_by_day:
+        print("Could not find any data for the requested date(s).")
+        return
+
+    schedule_range = FullSchedule.create(schedules_by_day)
+    retrieverdb.store_showtimes(theater, schedule_range)
+    
+    return {"success": True}
