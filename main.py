@@ -109,20 +109,25 @@ def request_show_movie(title):
     return {}
 
 
-@app.get("/update-schedule")
-def scan():
-    # Should these be configurable via env vars?
-    theater = "AMC Methuen"  # Will likely expand to THEATER_SLUG_DICT.keys() once I implement theater switching into the app.
-    date_range = (date.today(), date.today() + timedelta(weeks=4))
-    
+def _retrieve_schedule(theater, date_range):
     print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
 
     schedules_by_day = load_schedules_by_day(theater, None, date_range, Filter.empty(), quiet=True)
     if not schedules_by_day:
-        print("Could not find any data for the requested date(s).")
+        print("[ERROR] Could not find any data for the requested date(s).")
         return
 
-    schedule_range = FullSchedule.create(schedules_by_day)
-    retrieverdb.store_showtimes(theater, schedule_range)
+    return FullSchedule.create(schedules_by_day)
+
+@app.get("/update-schedule")
+def scan():
+    # Should these be configurable via env vars?
+    theaters = THEATER_SLUG_DICT.keys()
+    date_range = (date.today(), date.today() + timedelta(weeks=4))
+
+    for theater in theaters:
+        schedule = _retrieve_schedule(theater, date_range)
+        if schedule:
+            retrieverdb.store_showtimes(theater, schedule)
     
     return {"success": True}
