@@ -1,6 +1,7 @@
 import itertools
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +10,9 @@ from fastapi.responses import HTMLResponse
 sys.path.append("scheduleretriever")
 from retriever import db as retrieverdb
 from retriever.fandango_json import load_schedules_by_day
+from retriever.movie_times_lib import collect_schedule, db_showtime_updates
 from retriever.schedule import THEATER_SLUG_DICT, Filter, FullSchedule
+
 import db as viewerdb
 
 
@@ -109,25 +112,22 @@ def request_show_movie(title):
     return {}
 
 
-def _retrieve_schedule(theater, date_range):
-    print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
-
-    schedules_by_day = load_schedules_by_day(theater, None, date_range, Filter.empty(), quiet=True)
-    if not schedules_by_day:
-        print("[ERROR] Could not find any data for the requested date(s).")
-        return
-
-    return FullSchedule.create(schedules_by_day)
-
 @app.get("/update-schedule")
 def scan():
+    print(f"Update starting at {datetime.now()}")
+
     # Should these be configurable via env vars?
     theaters = THEATER_SLUG_DICT.keys()
-    date_range = (date.today(), date.today() + timedelta(weeks=4))
+
+    # The server is on UTC
+    today = datetime.now(ZoneInfo("America/New_York")).date()
+    date_range = (today, today + timedelta(weeks=4))
 
     for theater in theaters:
-        schedule = _retrieve_schedule(theater, date_range)
+        print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
+        schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
         if schedule:
-            retrieverdb.store_showtimes(theater, schedule)
+            showtimes = retrieverdb.store_showtimes(theater, schedule)
+            db_showtime_updates(theater, date_range, showtimes)
     
     return {"success": True}
