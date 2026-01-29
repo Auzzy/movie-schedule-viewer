@@ -1,6 +1,6 @@
 import itertools
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
@@ -8,10 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 sys.path.append("scheduleretriever")
-from retriever import db as retrieverdb
+from retriever import db as retrieverdb, theaters
 from retriever.fandango_json import load_schedules_by_day
 from retriever.movie_times_lib import collect_schedule, db_showtime_updates
-from retriever.schedule import THEATER_SLUG_DICT, Filter, FullSchedule
+from retriever.schedule import Filter, FullSchedule
 
 import db as viewerdb
 
@@ -81,9 +81,9 @@ def _load_movie_display_info(showtimes):
     return display_info, filtered_showtimes
 
 
-def _load_showtimes(theater, first_date, last_date, title=None):
-    last_date = last_date or first_date
-    showtimes = retrieverdb.load_showtimes(theater, first_date, last_date)
+def _load_showtimes(theater, first_time, last_time, title=None):
+    last_time = last_time or first_time
+    showtimes = retrieverdb.load_showtimes(theater, first_time, last_time)
     return [s for s in showtimes if s["title"] == title] if title else showtimes
 
 @app.get("/", response_class=HTMLResponse)
@@ -91,15 +91,15 @@ def read_root():
     with open("index.html") as homepage_html:
         return homepage_html.read()
 
-@app.get("/showtimes/{theater}/{first_date}/{last_date}")
-def request_schedule_date_range(theater: str, first_date: date, last_date: date):
-    showtimes = _load_showtimes(theater, first_date, last_date)
+@app.get("/showtimes/{theater}/{first_time}/{last_time}")
+def request_schedule_date_range(theater: str, first_time: datetime, last_time: datetime):
+    showtimes = _load_showtimes(theater, first_time, last_time)
     display_info, filtered_showtimes = _load_movie_display_info(showtimes)
     return {"showtimes": filtered_showtimes, "display": display_info}
 
-@app.get("/showtimes/{theater}/{title}/{first_date}/{last_date}")
-def request_movie_schedule_date_range(theater: str, title: str, first_date: date, last_date: date):
-    return {"showtimes": _load_showtimes(theater, first_date, last_date, title)}
+@app.get("/showtimes/{theater}/{title}/{first_time}/{last_time}")
+def request_movie_schedule_date_range(theater: str, title: str, first_date: datetime, last_date: datetime):
+    return {"showtimes": _load_showtimes(theater, first_time, last_time, title)}
 
 @app.put("/movies/{title}/hide")
 def request_hide_movie(title):
@@ -114,16 +114,13 @@ def request_show_movie(title):
 
 @app.get("/update-schedule")
 def scan():
-    print(f"Update starting at {datetime.now()}")
+    print(f"Update starting at {datetime.now(timezone.utc)} UTC")
 
-    # Should these be configurable via env vars?
-    theaters = THEATER_SLUG_DICT.keys()
+    for theater in theaters.THEATER_NAMES:
+        tz = theaters.timezone(theater)
+        today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+        date_range = (today, today + timedelta(weeks=4))
 
-    # The server is on UTC
-    today = datetime.now(ZoneInfo("America/New_York")).date()
-    date_range = (today, today + timedelta(weeks=4))
-
-    for theater in theaters:
         print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
         schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
         if schedule:

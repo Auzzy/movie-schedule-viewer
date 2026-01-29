@@ -39,13 +39,13 @@
                 return result;
             }
 
-            async function getMovieSchedule(theater, title, startDate, endDate) {
-                const result = await get(`showtimes/${encodeURIComponent(theater)}/${encodeURIComponent(title)}/${startDate}/${endDate}`);
+            async function getMovieSchedule(theater, title, startTime, endTime) {
+                const result = await get(`showtimes/${encodeURIComponent(theater)}/${encodeURIComponent(title)}/${startTime}/${endTime}`);
                 return result;
             }
 
-            async function getSchedule(theater, startDate, endDate) {
-                const result = await get(`showtimes/${encodeURIComponent(theater)}/${startDate}/${endDate}`);
+            async function getSchedule(theater, startTime, endTime) {
+                const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
                 return result;
             }
 
@@ -63,8 +63,8 @@
                         }
                         return {
                             "title": title,
-                            "start": `${showtime["start_date"]}T${showtime["start_time"]}`,
-                            "end": `${showtime["end_date"]}T${showtime["end_time"]}`
+                            "start": showtime["start_time"],
+                            "end": showtime["end_time"]
                         };
                     });
                 }
@@ -117,13 +117,13 @@
                                 entry.style.background = display["background_color"];
                                 entry.style.color = display["text_color"];
 
-                                var startDate = calendar.formatIso(calendar.view.activeStart, true);
-                                var endDate = calendar.formatIso(calendar.view.activeEnd, true);
+                                var startTime = calendar.formatIso(calendar.view.activeStart);
+                                var endTime = calendar.formatIso(calendar.view.activeEnd);
                                 showMovie(title);
 
                                 var rawTheater = document.getElementById('theater-selector').value;
                                 var theater = rawTheater === undefined || rawTheater == null ? "AMC Methuen" : rawTheater;
-                                getMovieSchedule(theater, title, startDate, endDate).then(function(result) {
+                                getMovieSchedule(theater, title, startTime, endTime).then(function(result) {
                                     calendar.addEventSource({
                                         "id": title,
                                         "events": showtimesToEvents(result["showtimes"]),
@@ -157,8 +157,8 @@
                         right: 'dayGridMonth,timeGridWeek,timeGridDay'
                     },
                     datesSet: function(dateInfo) {
-                        var endStr = calendar.formatIso(new Date(dateInfo.end.setDate(dateInfo.end.getDate() - 1)), true);
-                        var startStr = calendar.formatIso(dateInfo.start, true);
+                        var endStr = calendar.formatIso(dateInfo.end);
+                        var startStr = calendar.formatIso(dateInfo.start);
                         var rawTheater = document.getElementById('theater-selector').value;
                         var theater = rawTheater === undefined || rawTheater == null ? "AMC Methuen" : rawTheater;
 
@@ -170,8 +170,8 @@
                 
                 var theaterSelectorEl = document.getElementById('theater-selector');
                 theaterSelectorEl.onchange = function() {
-                    var startStr = calendar.formatIso(calendar.view.activeStart, true);
-                    var endStr = calendar.formatIso(calendar.view.activeEnd, true);
+                    var startStr = calendar.formatIso(calendar.view.activeStart);
+                    var endStr = calendar.formatIso(calendar.view.activeEnd);
                     clearCalendar(calendar);
                     getSchedule(theaterSelectorEl.value, startStr, endStr).then(loadShowtimesCallback);
                 };

@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 import sqlite3
 
 import psycopg2
