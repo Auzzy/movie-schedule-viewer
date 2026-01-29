@@ -85,7 +85,9 @@
                     });
 
                     var minStartHour = allEvents.map((e) => new Date(e.start).getHours()).toSorted()[0]
-                    calendar.setOption('slotMinTime', `${minStartHour}:00:00`);
+                    if (minStartHour !== undefined) {
+                        calendar.setOption('slotMinTime', `${minStartHour}:00:00`);
+                    }
 
                     calendar.render();
 
