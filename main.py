@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 sys.path.append("scheduleretriever")
 from retriever import db as retrieverdb, theaters
@@ -51,6 +52,7 @@ MOVIE_COLORS = [
 
 app = FastAPI()
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -96,10 +98,6 @@ def request_schedule_date_range(theater: str, first_time: datetime, last_time: d
     showtimes = _load_showtimes(theater, first_time, last_time)
     display_info, filtered_showtimes = _load_movie_display_info(showtimes)
     return {"showtimes": filtered_showtimes, "display": display_info}
-
-@app.get("/showtimes/{theater}/{title}/{first_time}/{last_time}")
-def request_movie_schedule_date_range(theater: str, title: str, first_date: datetime, last_date: datetime):
-    return {"showtimes": _load_showtimes(theater, first_time, last_time, title)}
 
 @app.put("/movies/{title}/hide")
 def request_hide_movie(title):

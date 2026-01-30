@@ -2,6 +2,7 @@
 <html lang='en'>
     <head>
         <meta charset='utf-8' />
+        <link rel="stylesheet" href="static/dropdown.css">
         <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
         <script>
             async function request(method, path, bodyJson) {
@@ -40,8 +41,10 @@
             }
 
             async function getMovieSchedule(theater, title, startTime, endTime) {
-                const result = await get(`showtimes/${encodeURIComponent(theater)}/${encodeURIComponent(title)}/${startTime}/${endTime}`);
-                return result;
+                return getSchedule(theater, startTime, endTime).then((result) => {
+                    result["showtimes"] = result["showtimes"].filter((showtime) => showtime["title"] === title);
+                    return result;
+                });
             }
 
             async function getSchedule(theater, startTime, endTime) {
@@ -52,6 +55,11 @@
             function clearCalendar(calendar) {
                 document.getElementById("movie-list").innerHTML = "";
                 calendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
+            }
+
+            function selectedTheater() {
+                var rawTheater = document.getElementById("theater-selected").innerHTML;
+                return rawTheater === undefined || rawTheater == null ? "AMC Methuen" : rawTheater;
             }
 
             document.addEventListener('DOMContentLoaded', function() {
@@ -123,8 +131,7 @@
                                 var endTime = calendar.formatIso(calendar.view.activeEnd);
                                 showMovie(title);
 
-                                var rawTheater = document.getElementById('theater-selector').value;
-                                var theater = rawTheater === undefined || rawTheater == null ? "AMC Methuen" : rawTheater;
+                                var theater = selectedTheater();
                                 getMovieSchedule(theater, title, startTime, endTime).then(function(result) {
                                     calendar.addEventSource({
                                         "id": title,
@@ -161,8 +168,7 @@
                     datesSet: function(dateInfo) {
                         var endStr = calendar.formatIso(dateInfo.end);
                         var startStr = calendar.formatIso(dateInfo.start);
-                        var rawTheater = document.getElementById('theater-selector').value;
-                        var theater = rawTheater === undefined || rawTheater == null ? "AMC Methuen" : rawTheater;
+                        var theater = selectedTheater();
 
                         clearCalendar(calendar);
                         getSchedule(theater, startStr, endStr).then(loadShowtimesCallback);
@@ -170,13 +176,24 @@
                 });
                 calendar.render();
                 
-                var theaterSelectorEl = document.getElementById('theater-selector');
-                theaterSelectorEl.onchange = function() {
-                    var startStr = calendar.formatIso(calendar.view.activeStart);
-                    var endStr = calendar.formatIso(calendar.view.activeEnd);
-                    clearCalendar(calendar);
-                    getSchedule(theaterSelectorEl.value, startStr, endStr).then(loadShowtimesCallback);
-                };
+                document.querySelectorAll("#theater-options .dropdown-item").forEach(item => {
+                    item.addEventListener("click", function(e) {
+                        var theater = this.textContent.trim();
+                        const button = document.getElementById("theater-selected");
+                        button.innerHTML = theater;
+
+                        // Visual feedback
+                        button.style.transform = 'scale(0.95)';
+                        setTimeout(() => {
+                            button.style.transform = '';
+                        }, 300);
+
+                        var startStr = calendar.formatIso(calendar.view.activeStart);
+                        var endStr = calendar.formatIso(calendar.view.activeEnd);
+                        clearCalendar(calendar);
+                        getSchedule(theater, startStr, endStr).then(loadShowtimesCallback);
+                    });
+                });
                 
             });
         </script>
@@ -184,17 +201,21 @@
     <body>
         <div style="display: flex;">
             <div style="flex: 10%; padding-right: 50px">
-                <select name="theater" id="theater-selector" style="margin-bottom: 20px;">
-                    <option value="AMC Methuen">AMC Methuen</option>
-                    <option value="AMC Tyngsboro">AMC Tyngsboro</option>
-                    <option value="AMC Boston Common">AMC Boston Common</option>
-                    <option value="AMC Causeway">AMC Causeway</option>
-                    <option value="Apple Hooksett">Apple Hooksett</option>
-                    <option value="Apple Merrimack">Apple Merrimack</option>
-                    <option value="Showcase Randolph">Showcase Randolph</option>
-                    <option value="O'Neil Epping">O'Neil Epping</option>
-                    <option value="O'Neil Londonderry">O'Neil Londonderry</option>
-                </select>
+                <div class="dropdown" style="margin-top: 20px;">
+                    <button id="theater-selected" class="dropdown-toggle">AMC Methuen</button>
+                    <div id="theater-options" class="dropdown-menu">
+                        <a href="#" class="dropdown-item">AMC Methuen</a>
+                        <a href="#" class="dropdown-item">AMC Tyngsboro</a>
+                        <a href="#" class="dropdown-item">AMC Boston Common</a>
+                        <a href="#" class="dropdown-item">AMC Causeway</a>
+                        <a href="#" class="dropdown-item">Apple Hooksett</a>
+                        <a href="#" class="dropdown-item">Apple Merrimack</a>
+                        <a href="#" class="dropdown-item">Showcase Randolph</a>
+                        <a href="#" class="dropdown-item">O'Neil Epping</a>
+                        <a href="#" class="dropdown-item">O'Neil Londonderry</a>
+                    </div>
+                </div>
+                <hr />
                 <div id="movie-list"></div>
             </div>
             <div style="flex: 90%">
