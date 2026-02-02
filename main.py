@@ -83,10 +83,9 @@ def _load_movie_display_info(showtimes):
     return display_info, filtered_showtimes
 
 
-def _load_showtimes(theater, first_time, last_time, title=None):
+def _load_showtimes(theater, first_time, last_time):
     last_time = last_time or first_time
-    showtimes = retrieverdb.load_showtimes(theater, first_time, last_time)
-    return [s for s in showtimes if s["title"] == title] if title else showtimes
+    return retrieverdb.load_showtimes(theater, first_time, last_time)
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():

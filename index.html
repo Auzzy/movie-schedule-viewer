@@ -3,6 +3,7 @@
     <head>
         <meta charset='utf-8' />
         <link rel="stylesheet" href="static/dropdown.css" />
+        <link rel="stylesheet" href="static/slider.css" />
         <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
         <script>
             function showtimeToEvent(showtime) {
@@ -13,7 +14,13 @@
                 return {
                     "title": title,
                     "start": showtime["start_time"],
-                    "end": showtime["end_time"]
+                    "end": showtime["end_time"],
+                    "extendedProps": {
+                        "theater": showtime["theater"],
+                        "format": showtime["format"],
+                        "is_open_caption": showtime["is_open_caption"],
+                        "no_alist": showtime["no_alist"],
+                    }
                 }
             }
 
@@ -35,8 +42,8 @@
                 return baseShowtimeToEventSource(showtime["title"], [showtimeToEvent(showtime)], displayInfo);
             }
 
-            function showtimesToEventSources(allShowtimes, displayInfo) {
-                var showtimesByTitle = Object.groupBy(allShowtimes, (evt) => evt["title"]);
+            function showtimesToEventSources(showtimes, displayInfo) {
+                var showtimesByTitle = Object.groupBy(showtimes, (evt) => evt["title"]);
                 return Object.entries(showtimesByTitle).map(([title, showtimes]) => {
                     return baseShowtimeToEventSource(title, showtimesToEvents(showtimes), displayInfo);
                 });
@@ -112,15 +119,66 @@
                 return rawTheater === undefined || rawTheater == null ? "AMC Methuen" : rawTheater;
             }
 
+            function toggle_is_checked(toggleEl) {
+                if (typeof toggleEl === "string") {
+                    toggleEl = document.getElementById(toggleEl);
+                }
+                return toggleEl.querySelector("label input").checked;
+            }
+
+            function createToggleSlider(calendar, id, prop, value) {
+                var value = value === undefined ? true : value;
+                var toggleEl = document.getElementById(id)
+                toggleEl.addEventListener("change", function (e) {
+                    if (toggle_is_checked(toggleEl)) {
+                        getFilteredSchedule(calendar, (showtime) => showtime[prop] === value);
+                    } else {
+                        calendar.getEvents().forEach((event) => {
+                            if (event.extendedProps[prop] === value) {
+                                event.remove();
+                            }
+                        });
+                    }
+                });
+                return toggleEl;
+            }
+
+            function applyShowtimeFilters(showtimes) {
+                return showtimes.filter((showtime) => {
+                    if (!toggle_is_checked("is-open-captions-toggle") && showtime["is_open_caption"]) {
+                        return false
+                    }
+                    if (!toggle_is_checked("no-alist-toggle") && showtime["no_alist"]) {
+                        return false
+                    }
+                    if (!toggle_is_checked("3d-toggle") && showtime["format"] === "3D") {
+                        return false
+                    }
+                    if (!toggle_is_checked("imax-toggle") && showtime["format"] === "IMAX") {
+                        return false
+                    }
+                    if (!toggle_is_checked("imax-3d-toggle") && showtime["format"] === "IMAX 3D") {
+                        return false
+                    }
+                    if (!toggle_is_checked("dolby-toggle") && showtime["format"] === "Dolby") {
+                        return false
+                    }
+                    if (!toggle_is_checked("dolby-3d-toggle") && showtime["format"] === "Dolby 3D") {
+                        return false
+                    }
+                    return true;
+                });
+            }
+
             document.addEventListener('DOMContentLoaded', function() {
                 function loadShowtimesCallback(result) {
                     var allShowtimes = result["showtimes"];
-                    var allEvents = showtimesToEvents(allShowtimes);
+                    var filteredShowtimes = applyShowtimeFilters(allShowtimes);
                     var displayInfo = result["display"];
 
-                    showtimesToEventSources(allShowtimes, displayInfo).forEach((eventSource) => calendar.addEventSource(eventSource));
+                    showtimesToEventSources(filteredShowtimes, displayInfo).forEach((eventSource) => calendar.addEventSource(eventSource));
 
-                    var minStartHour = allEvents.map((e) => new Date(e.start).getHours()).toSorted()[0]
+                    var minStartHour = allShowtimes.map((s) => new Date(s["start_time"]).getHours()).toSorted()[0]
                     if (minStartHour !== undefined) {
                         calendar.setOption('slotMinTime', `${minStartHour}:00:00`);
                     }
@@ -212,6 +270,13 @@
                     });
                 });
                 
+                createToggleSlider(calendar, "is-open-captions-toggle", "is_open_caption");
+                createToggleSlider(calendar, "no-alist-toggle", "no_alist");
+                createToggleSlider(calendar, "3d-toggle", "format", "3D");
+                createToggleSlider(calendar, "imax-toggle", "format", "IMAX");
+                createToggleSlider(calendar, "imax-3d-toggle", "format", "IMAX 3D");
+                createToggleSlider(calendar, "dolby-toggle", "format", "Dolby");
+                createToggleSlider(calendar, "dolby-3d-toggle", "format", "Dolby 3D");
             });
         </script>
     </head>
@@ -231,6 +296,56 @@
                         <a href="#" class="dropdown-item">O'Neil Epping</a>
                         <a href="#" class="dropdown-item">O'Neil Londonderry</a>
                     </div>
+                </div>
+                <hr />
+                <div id="is-open-captions-toggle">
+                    <label class="switch" style="vertical-align:middle;">
+                        <input type="checkbox" checked />
+                        <span class="slider round"></span>
+                    </label>
+                    <label style="display:inline-block; vertical-align:middle;">Open Captions</label>
+                </div>
+                <div id="no-alist-toggle">
+                    <label class="switch" style="vertical-align:middle;">
+                        <input type="checkbox" checked />
+                        <span class="slider round"></span>
+                    </label>
+                    <label style="display:inline-block; vertical-align:middle;">No A-List</label>
+                </div>
+                <div id="3d-toggle">
+                    <label class="switch" style="vertical-align:middle;">
+                        <input type="checkbox" checked />
+                        <span class="slider round"></span>
+                    </label>
+                    <label style="display:inline-block; vertical-align:middle;">3D</label>
+                </div>
+                <div id="imax-toggle">
+                    <label class="switch" style="vertical-align:middle;">
+                        <input type="checkbox" checked />
+                        <span class="slider round"></span>
+                    </label>
+                    <label style="display:inline-block; vertical-align:middle;">IMAX</label>
+                </div>
+                <div id="imax-3d-toggle">
+                    <label class="switch" style="vertical-align:middle;">
+                        <input type="checkbox" checked />
+                        <span class="slider round"></span>
+                    </label>
+                    <label style="display:inline-block; vertical-align:middle;">IMAX 3D</label>
+                </div>
+                <div id="dolby-toggle">
+                    <label class="switch" style="vertical-align:middle;">
+                        <input type="checkbox" checked />
+                        <span class="slider round"></span>
+                    </label>
+                    <label style="display:inline-block; vertical-align:middle;">Dolby</label>
+                </div>
+                <div id="dolby-3d-toggle">
+                    <label class="switch" style="vertical-align:middle;">
+                        <input type="checkbox" checked />
+                        <span class="slider round"></span>
+                    </label>
+                    <label style="display:inline-block; vertical-align:middle;">Dolby 3D</label>
                 </div>
                 <hr />
                 <div id="movie-list"></div>
