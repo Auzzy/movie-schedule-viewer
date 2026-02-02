@@ -2,9 +2,46 @@
 <html lang='en'>
     <head>
         <meta charset='utf-8' />
-        <link rel="stylesheet" href="static/dropdown.css">
+        <link rel="stylesheet" href="static/dropdown.css" />
         <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
         <script>
+            function showtimeToEvent(showtime) {
+                var title = showtime["title"];
+                if (showtime["format"] != "Standard") {
+                    title = `[${showtime["format"]}] ${title}`
+                }
+                return {
+                    "title": title,
+                    "start": showtime["start_time"],
+                    "end": showtime["end_time"]
+                }
+            }
+
+            function showtimesToEvents(showtimes) {
+                return showtimes.map(showtimeToEvent);
+            }
+
+
+            function baseShowtimeToEventSource(title, events, displayInfo) {
+                return {
+                    "id": title,
+                    "events": events,
+                    "backgroundColor": displayInfo[title]["background_color"],
+                    "textColor": displayInfo[title]["text_color"]
+                }
+            }
+
+            function showtimeToEventSource(showtime, displayInfo) {
+                return baseShowtimeToEventSource(showtime["title"], [showtimeToEvent(showtime)], displayInfo);
+            }
+
+            function showtimesToEventSources(allShowtimes, displayInfo) {
+                var showtimesByTitle = Object.groupBy(allShowtimes, (evt) => evt["title"]);
+                return Object.entries(showtimesByTitle).map(([title, showtimes]) => {
+                    return baseShowtimeToEventSource(title, showtimesToEvents(showtimes), displayInfo);
+                });
+            }
+
             async function request(method, path, bodyJson) {
                 const url = `/${path}`;
                 try {
@@ -40,11 +77,24 @@
                 return result;
             }
 
-            async function getMovieSchedule(theater, title, startTime, endTime) {
-                return getSchedule(theater, startTime, endTime).then((result) => {
-                    result["showtimes"] = result["showtimes"].filter((showtime) => showtime["title"] === title);
-                    return result;
-                });
+            async function getFilteredSchedule(calendar, filterFunc) {
+                var theater = selectedTheater();
+                var startTime = calendar.formatIso(calendar.view.activeStart);
+                var endTime = calendar.formatIso(calendar.view.activeEnd);
+                return getSchedule(theater, startTime, endTime)
+                    .then(function(result) {
+                        var displayInfo = result["display"];
+                        return result["showtimes"]
+                            .filter(filterFunc)
+                            .forEach((showtime) => {
+                                var eventSource = calendar.getEventSourceById(showtime["title"]);
+                                if (eventSource === null) {
+                                    calendar.addEventSource(showtimeToEventSource(showtime, displayInfo));
+                                } else {
+                                    calendar.addEvent(showtimeToEvent(showtime), eventSource);
+                                }
+                            });
+                    });
             }
 
             async function getSchedule(theater, startTime, endTime) {
@@ -63,34 +113,12 @@
             }
 
             document.addEventListener('DOMContentLoaded', function() {
-                function showtimesToEvents(showtimes) {
-                    return showtimes.map((showtime) => {
-                        var title = showtime["title"];
-                        if (showtime["format"] != "Standard") {
-                            title = `[${showtime["format"]}] ${title}`
-                        }
-                        return {
-                            "title": title,
-                            "start": showtime["start_time"],
-                            "end": showtime["end_time"]
-                        };
-                    });
-                }
-
                 function loadShowtimesCallback(result) {
                     var allShowtimes = result["showtimes"];
                     var allEvents = showtimesToEvents(allShowtimes);
                     var displayInfo = result["display"];
 
-                    var showtimesByTitle = Object.groupBy(allShowtimes, (evt) => evt["title"]);
-                    Object.entries(showtimesByTitle).forEach(([title, showtimes]) => {
-                        calendar.addEventSource({
-                            "id": title,
-                            "events": showtimesToEvents(showtimes),
-                            "backgroundColor": displayInfo[title]["background_color"],
-                            "textColor": displayInfo[title]["text_color"]
-                        });
-                    });
+                    showtimesToEventSources(allShowtimes, displayInfo).forEach((eventSource) => calendar.addEventSource(eventSource));
 
                     var minStartHour = allEvents.map((e) => new Date(e.start).getHours()).toSorted()[0]
                     if (minStartHour !== undefined) {
@@ -127,19 +155,8 @@
                                 entry.style.background = display["background_color"];
                                 entry.style.color = display["text_color"];
 
-                                var startTime = calendar.formatIso(calendar.view.activeStart);
-                                var endTime = calendar.formatIso(calendar.view.activeEnd);
                                 showMovie(title);
-
-                                var theater = selectedTheater();
-                                getMovieSchedule(theater, title, startTime, endTime).then(function(result) {
-                                    calendar.addEventSource({
-                                        "id": title,
-                                        "events": showtimesToEvents(result["showtimes"]),
-                                        "backgroundColor": displayInfo[title]["background_color"],
-                                        "textColor": displayInfo[title]["text_color"]
-                                    });
-                                });
+                                getFilteredSchedule(calendar, (showtime) => showtime["title"] === title);
                             } else {
                                 entry.style.background = "white";
                                 entry.style.color = display["background_color"];
