@@ -109,6 +109,11 @@
                 return result;
             }
 
+            async function getMovieSchedule(theater, title, startTime, endTime) {
+                const result = await get(`showtimes/${encodeURIComponent(theater)}/title/${encodeURIComponent(title)}/${startTime}/${endTime}`);
+                return result;
+            }
+
             function clearCalendar(calendar) {
                 document.getElementById("movie-list").innerHTML = "";
                 calendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
@@ -190,12 +195,14 @@
                     Object.entries(displayInfo).toSorted().forEach(([title, display], i) => {
                         var entry = document.createElement('div');
                         entry.dataset.title = title;
+                        entry.style.display = "flex";
+                        entry.style.alignItems = "center";
                         entry.style.border = `thin solid ${display["background_color"]}`;
                         entry.style.borderRadius = "5px";
                         entry.style.margin = "5px";
                         entry.style.padding = "5px";
                         entry.style.cursor = "pointer";
-                        if (display["visible"] === true) {
+                        if (display["visible"]) {
                             entry.style.background = display["background_color"];
                             entry.style.color = display["text_color"];
                         } else {
@@ -203,9 +210,8 @@
                             entry.style.color = display["background_color"];
                         }
 
-                        entry.appendChild(document.createTextNode(title));
                         entry.addEventListener("click", function (e) {
-                            var title = e.currentTarget.innerText;
+                            var title = e.currentTarget.dataset.title;
                             var titleShowtimes = calendar.getEvents().filter((evt) => evt.title === title);
                             var titleEventSource = calendar.getEventSourceById(title);
                             var li = movieListEl.querySelector(`[data-title="${title}"]`);
@@ -223,9 +229,58 @@
                                 titleEventSource.remove();
                             }
                         });
+
+                        var titleEl = document.createElement("div");
+                        titleEl.innerHTML = title;
+                        titleEl.style.flex = "80%";
+                        entry.appendChild(titleEl);
+
+                        var openListingEl = document.createElement('button');
+                        openListingEl.style.cursor = "pointer";
+                        openListingEl.style.backgroundColor = "transparent";
+                        openListingEl.style.borderWidth = "1px";
+                        openListingEl.innerHTML = "&#x1f4c5";
+                        openListingEl.style.maxHeight = "21px";
+                        openListingEl.popoverTargetElement = document.getElementById("movie-showtime-listing");
+                        openListingEl.addEventListener("click", function(e) {
+                            e.stopPropagation();
+
+                            var startStr = calendar.formatIso(calendar.view.activeStart);
+                            var endStr = calendar.formatIso(calendar.view.activeEnd);
+                            var theater = selectedTheater();
+                            var title = e.currentTarget.parentNode.dataset.title;
+                            getMovieSchedule(theater, title, startStr, endStr).then(function(result) {
+                                showtimesToEventSources(result["showtimes"], displayInfo).forEach((eventSource) =>
+                                    listingCalendar.addEventSource(eventSource)
+                                );
+                                listingCalendar.render();
+                            });
+                        });
+
+                        entry.appendChild(openListingEl);
+
                         movieListEl.appendChild(entry);
                     });
                 };
+
+                document.getElementById("movie-showtime-listing").addEventListener("beforetoggle", function(e) {
+                    if (e.newState === "open") {
+                        var listingView = "";
+                        switch (calendar.view.type) {
+                            case "dayGridMonth": listingView = "listMonth"; break;
+                            case "timeGridWeek": listingView = "listWeek"; break;
+                            case "timeGridDay": listingView = "listDay"; break;
+                            default: throw new Error(`Unrecognized main calendar view type: ${calendar.view.type}`);
+                        }
+
+                        var startStr = calendar.formatIso(calendar.view.activeStart);
+                        var endStr = calendar.formatIso(calendar.view.activeEnd);
+                        listingCalendar.changeView(listingView, {"start": startStr, "end": endStr});
+                        listingCalendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
+                        listingCalendar.render();
+                    }
+                });
+
 
                 var calendarEl = document.getElementById('calendar');
                 var calendar = new FullCalendar.Calendar(calendarEl, {
@@ -250,7 +305,20 @@
                     }
                 });
                 calendar.render();
-                
+
+                var listingCalendarEl = document.getElementById("listing-calendar");
+                var listingCalendar = new FullCalendar.Calendar(listingCalendarEl, {
+                    initialView: 'listWeek',
+                    contentHeight: "auto",
+                    allDaySlot: false,
+                    headerToolbar: {
+                        left: '',
+                        center: 'title',
+                        right: ''
+                    },
+                });
+                listingCalendar.render();
+    
                 document.querySelectorAll("#theater-options .dropdown-item").forEach(item => {
                     item.addEventListener("click", function(e) {
                         var theater = this.textContent.trim();
@@ -281,6 +349,9 @@
         </script>
     </head>
     <body>
+        <div popover id="movie-showtime-listing" style="width: 25%; height: 65%;">
+            <div id='listing-calendar'></div>
+        </div>
         <div style="display: flex;">
             <div style="flex: 10%; padding-right: 50px">
                 <div class="dropdown" style="margin-top: 20px;">
