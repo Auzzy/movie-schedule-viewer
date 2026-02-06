@@ -16,6 +16,7 @@
                     "start": showtime["start_time"],
                     "end": showtime["end_time"],
                     "extendedProps": {
+                        "name": showtime["title"],
                         "theater": showtime["theater"],
                         "format": showtime["format"],
                         "is_open_caption": showtime["is_open_caption"],
@@ -302,6 +303,49 @@
 
                         clearCalendar(calendar);
                         getSchedule(theater, startStr, endStr).then(loadShowtimesCallback);
+                    },
+                    eventClick: function(eventClickInfo) {
+                        var showtime = eventClickInfo.event;
+                        var showtimeDetails = showtime.extendedProps;
+
+                        var startHoursRaw = showtime.start.getHours() % 12;
+                        var startHours = startHoursRaw == 0 ? 12 : startHoursRaw;
+                        var startMinutes = String(showtime.start.getMinutes()).padStart(2, "0");
+                        var startPeriod = showtime.start.getHours() < 12 ? "a" : "p";
+                        var startDisplayStr = `${startHours}:${startMinutes}${startPeriod}`;
+                        var endHoursRaw = showtime.end.getHours() % 12;
+                        var endHours = endHoursRaw == 0 ? 12 : endHoursRaw;
+                        var endMinutes = String(showtime.end.getMinutes()).padStart(2, "0");
+                        var endPeriod = showtime.end.getHours() < 12 ? "a" : "p";
+                        var endDisplayStr = `${endHours}:${endMinutes}${endPeriod}`;
+
+                        var headerEl = document.createElement("h2");
+                        headerEl.innerHTML = showtimeDetails["name"];
+                        headerEl.style.marginTop = "0px";
+                        headerEl.style.marginBottom = "5px";
+                        headerEl.style.marginLeft = "0px";
+
+                        var timeEl = document.createElement("div");
+                        timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
+
+                        var formatStr = showtimeDetails["format"];
+                        if (showtimeDetails["is_open_caption"]) {
+                            formatStr += ", Open Caption";
+                        }
+                        if (showtimeDetails["no_alist"]) {
+                            formatStr += ", No A-List";
+                        }
+
+                        var detailsEl = document.createElement("div");
+                        detailsEl.innerHTML = formatStr;
+
+                        var showtimeDetailsPopover = document.getElementById("showtime-details");
+                        showtimeDetailsPopover.innerHTML = "";
+                        showtimeDetailsPopover.appendChild(headerEl);
+                        showtimeDetailsPopover.appendChild(timeEl);
+                        showtimeDetailsPopover.appendChild(document.createElement("hr"));
+                        showtimeDetailsPopover.appendChild(detailsEl);
+                        showtimeDetailsPopover.showPopover();
                     }
                 });
                 calendar.render();
@@ -349,6 +393,7 @@
         </script>
     </head>
     <body>
+        <div popover id="showtime-details" style="width: 15%; height: 40%; padding: 10px;"></div>
         <div popover id="movie-showtime-listing" style="width: 25%; height: 65%;">
             <div id='listing-calendar'></div>
         </div>
