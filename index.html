@@ -149,36 +149,93 @@
                 return toggleEl;
             }
 
+            function createToggleElement(id, label, initialChecked) {
+                var initialChecked = initialChecked === undefined ? true : initialChecked;
+                var checkboxEl = Object.assign(document.createElement("input"), {type: "checkbox", checked: initialChecked});
+                var sliderEl = Object.assign(document.createElement("span"), {className: "slider round"});
+                var switchEl = Object.assign(document.createElement("label"), {className: "switch"});
+                switchEl.style.verticalAlign = "middle";
+                switchEl.appendChild(checkboxEl);
+                switchEl.appendChild(sliderEl);
+
+                var labelEl = Object.assign(document.createElement("label"), {innerHTML: label});
+                Object.assign(labelEl.style, {display: "inline-block", verticalAlign: "middle", marginLeft: "4px"});
+
+                var toggleEl = Object.assign(document.createElement("div"), {id: id});
+                toggleEl.dataset.label = label;
+                toggleEl.style.display = "none";
+                toggleEl.appendChild(switchEl);
+                toggleEl.appendChild(labelEl);
+
+                return toggleEl;
+            }
+
             function applyShowtimeFilters(showtimes) {
+                var negativeFilters = Array.from(document.getElementById("negative-filter-toggles").children)
+                    .filter((el) => !toggle_is_checked(el.id))
+                    .map((el) => el.dataset.field);
+                var enabledFormats = Array.from(document.getElementById("format-filter-toggles").children)
+                    .filter((el) => toggle_is_checked(el.id))
+                    .map((el) => el.dataset.label);
                 return showtimes.filter((showtime) => {
-                    if (!toggle_is_checked("is-open-captions-toggle") && showtime["is_open_caption"]) {
-                        return false
-                    }
-                    if (!toggle_is_checked("no-alist-toggle") && showtime["no_alist"]) {
-                        return false
-                    }
-                    if (!toggle_is_checked("3d-toggle") && showtime["format"] === "3D") {
-                        return false
-                    }
-                    if (!toggle_is_checked("imax-toggle") && showtime["format"] === "IMAX") {
-                        return false
-                    }
-                    if (!toggle_is_checked("imax-3d-toggle") && showtime["format"] === "IMAX 3D") {
-                        return false
-                    }
-                    if (!toggle_is_checked("dolby-toggle") && showtime["format"] === "Dolby") {
-                        return false
-                    }
-                    if (!toggle_is_checked("dolby-3d-toggle") && showtime["format"] === "Dolby 3D") {
-                        return false
-                    }
-                    return true;
+                    return !negativeFilters.some((field) => showtime[field]) && enabledFormats.includes(showtime["format"]);
                 });
+            }
+
+            function updateNegativeFilters(calendar, showtimes) {
+                var negativeFilterTogglesEl = document.getElementById("negative-filter-toggles");
+                var negativeFilters = [["Open Captions", "is_open_caption"], ["No A-List", "no_alist"]];
+                negativeFilters.forEach(([label, field]) => {
+                    var id = `${label.toLowerCase().replace(" ", "-")}-toggle`;
+                    var toggleEl = negativeFilterTogglesEl.querySelector(`#${id}`);
+                    if (toggleEl === null) {
+                        toggleEl = createToggleElement(id, label);
+                        toggleEl.dataset.field = field;
+                        negativeFilterTogglesEl.appendChild(toggleEl);
+
+                        createToggleSlider(calendar, id, field);
+                    }
+                    if (showtimes.some((s) => s[field])) {
+                        toggleEl.style.removeProperty("display");
+                    } else {
+                        toggleEl.style.display = "none";
+                    }
+                });
+            }
+
+            function updateFormatFilters(calendar, showtimes) {
+                var fmtFilterTogglesEl = document.getElementById("format-filter-toggles");
+                var newFormats = Array.from(new Set(showtimes.map((s) => s["format"])));
+                var oldFormats = Array.from(fmtFilterTogglesEl.children).map((el) => el.dataset.label);
+                var formats = newFormats.concat(oldFormats).toSorted();
+                formats.forEach((fmt) => {
+                    var id = `${fmt.toLowerCase().replace(" ", "-")}-toggle`;
+                    var toggleEl = document.getElementById(id);
+                    if (toggleEl === null) {
+                        toggleEl = createToggleElement(id, fmt);
+                        fmtFilterTogglesEl.appendChild(toggleEl);
+
+                        createToggleSlider(calendar, id, "format", fmt);
+                    }
+                    if (showtimes.some((s) => s["format"] == fmt)) {
+                        toggleEl.style.removeProperty("display");
+                    } else {
+                        toggleEl.style.display = "none";
+                    }
+                });
+            }
+
+            function updateFilters(calendar, showtimes) {
+                updateFormatFilters(calendar, showtimes);
+                updateNegativeFilters(calendar, showtimes);
             }
 
             document.addEventListener('DOMContentLoaded', function() {
                 function loadShowtimesCallback(result) {
                     var allShowtimes = result["showtimes"];
+
+                    updateFilters(calendar, allShowtimes);
+
                     var filteredShowtimes = applyShowtimeFilters(allShowtimes);
                     var displayInfo = result["display"];
 
@@ -381,14 +438,6 @@
                         getSchedule(theater, startStr, endStr).then(loadShowtimesCallback);
                     });
                 });
-                
-                createToggleSlider(calendar, "is-open-captions-toggle", "is_open_caption");
-                createToggleSlider(calendar, "no-alist-toggle", "no_alist");
-                createToggleSlider(calendar, "3d-toggle", "format", "3D");
-                createToggleSlider(calendar, "imax-toggle", "format", "IMAX");
-                createToggleSlider(calendar, "imax-3d-toggle", "format", "IMAX 3D");
-                createToggleSlider(calendar, "dolby-toggle", "format", "Dolby");
-                createToggleSlider(calendar, "dolby-3d-toggle", "format", "Dolby 3D");
             });
         </script>
     </head>
@@ -414,54 +463,9 @@
                     </div>
                 </div>
                 <hr />
-                <div id="is-open-captions-toggle">
-                    <label class="switch" style="vertical-align:middle;">
-                        <input type="checkbox" checked />
-                        <span class="slider round"></span>
-                    </label>
-                    <label style="display:inline-block; vertical-align:middle;">Open Captions</label>
-                </div>
-                <div id="no-alist-toggle">
-                    <label class="switch" style="vertical-align:middle;">
-                        <input type="checkbox" checked />
-                        <span class="slider round"></span>
-                    </label>
-                    <label style="display:inline-block; vertical-align:middle;">No A-List</label>
-                </div>
-                <div id="3d-toggle">
-                    <label class="switch" style="vertical-align:middle;">
-                        <input type="checkbox" checked />
-                        <span class="slider round"></span>
-                    </label>
-                    <label style="display:inline-block; vertical-align:middle;">3D</label>
-                </div>
-                <div id="imax-toggle">
-                    <label class="switch" style="vertical-align:middle;">
-                        <input type="checkbox" checked />
-                        <span class="slider round"></span>
-                    </label>
-                    <label style="display:inline-block; vertical-align:middle;">IMAX</label>
-                </div>
-                <div id="imax-3d-toggle">
-                    <label class="switch" style="vertical-align:middle;">
-                        <input type="checkbox" checked />
-                        <span class="slider round"></span>
-                    </label>
-                    <label style="display:inline-block; vertical-align:middle;">IMAX 3D</label>
-                </div>
-                <div id="dolby-toggle">
-                    <label class="switch" style="vertical-align:middle;">
-                        <input type="checkbox" checked />
-                        <span class="slider round"></span>
-                    </label>
-                    <label style="display:inline-block; vertical-align:middle;">Dolby</label>
-                </div>
-                <div id="dolby-3d-toggle">
-                    <label class="switch" style="vertical-align:middle;">
-                        <input type="checkbox" checked />
-                        <span class="slider round"></span>
-                    </label>
-                    <label style="display:inline-block; vertical-align:middle;">Dolby 3D</label>
+                <div id="filter-toggles">
+                    <div id="negative-filter-toggles"></div>
+                    <div id="format-filter-toggles"></div>
                 </div>
                 <hr />
                 <div id="movie-list"></div>
