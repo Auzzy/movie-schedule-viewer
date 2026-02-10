@@ -115,8 +115,13 @@
                 return result;
             }
 
+            function resetMovieList() {
+                var movieListEl = document.getElementById("movie-list");
+                movieListEl.innerHTML = "<div id=\"shown-movies\"></div><div id=\"hidden-movies\"></div>";
+            }
+
             function clearCalendar(calendar) {
-                document.getElementById("movie-list").innerHTML = "";
+                resetMovieList();
                 calendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
             }
 
@@ -248,8 +253,8 @@
 
                     calendar.render();
 
+                    resetMovieList();
                     var movieListEl = document.getElementById("movie-list");
-                    movieListEl.innerHTML = "";
                     Object.entries(displayInfo).toSorted().forEach(([title, display], i) => {
                         var entry = document.createElement('div');
                         entry.dataset.title = title;
@@ -260,6 +265,7 @@
                         entry.style.margin = "5px";
                         entry.style.padding = "5px";
                         entry.style.cursor = "pointer";
+                        entry.dataset.visible = display["visible"].toString();
                         if (display["visible"]) {
                             entry.style.background = display["background_color"];
                             entry.style.color = display["text_color"];
@@ -276,12 +282,22 @@
                             if (titleEventSource === null) {
                                 entry.style.background = display["background_color"];
                                 entry.style.color = display["text_color"];
+                                entry.dataset.visible = "true";
+
+                                Array.from(document.getElementById("shown-movies").children)
+                                    .find((el) => el.dataset.title > title)
+                                    .before(entry);
 
                                 showMovie(title);
                                 getFilteredSchedule(calendar, (showtime) => showtime["title"] === title);
                             } else {
                                 entry.style.background = "white";
                                 entry.style.color = display["background_color"];
+                                entry.dataset.visible = "false";
+
+                                Array.from(document.getElementById("hidden-movies").children)
+                                    .find((el) => el.dataset.title > title)
+                                    .before(entry);
 
                                 hideMovie(title);
                                 titleEventSource.remove();
@@ -319,7 +335,8 @@
 
                         entry.appendChild(openListingEl);
 
-                        movieListEl.appendChild(entry);
+                        var sublistId = entry.dataset.visible == "true" ? "shown-movies" : "hidden-movies";
+                        document.getElementById(sublistId).appendChild(entry);
                     });
                 };
 
@@ -470,7 +487,10 @@
                     <div id="format-filter-toggles"></div>
                 </div>
                 <hr />
-                <div id="movie-list"></div>
+                <div id="movie-list">
+                    <div id="shown-movies"></div>
+                    <div id="hidden-movies"></div>
+                </div>
             </div>
             <div style="flex: 90%">
                 <div id='calendar'></div>
