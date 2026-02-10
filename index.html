@@ -329,6 +329,8 @@
                                 showtimesToEventSources(result["showtimes"], displayInfo).forEach((eventSource) =>
                                     listingCalendar.addEventSource(eventSource)
                                 );
+
+
                                 listingCalendar.render();
                             });
                         });
@@ -343,12 +345,28 @@
                 document.getElementById("movie-showtime-listing").addEventListener("beforetoggle", function(e) {
                     if (e.newState === "open") {
                         var listingView = "";
+                        var titleFormat = false;
+                        var listDayFormat = false;
                         switch (calendar.view.type) {
-                            case "dayGridMonth": listingView = "listMonth"; break;
-                            case "timeGridWeek": listingView = "listWeek"; break;
-                            case "timeGridDay": listingView = "listDay"; break;
+                            case "dayGridMonth":
+                                listingView = "listMonth";
+                                titleFormat = {month: 'long', year: 'numeric'};
+                                listDayFormat = {weekday: 'long', month: 'long', day: 'numeric'};
+                                break;
+                            case "timeGridWeek":
+                                listingView = "listWeek";
+                                titleFormat = {month: 'long', day: 'numeric', year: 'numeric'};
+                                listDayFormat = {weekday: 'long', month: 'long', day: 'numeric'};
+                                break;
+                            case "timeGridDay":
+                                listingView = "listDay";
+                                titleFormat = {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'};
+                                break;
                             default: throw new Error(`Unrecognized main calendar view type: ${calendar.view.type}`);
                         }
+
+                        listingCalendar.setOption("titleFormat", titleFormat);
+                        listingCalendar.setOption("listDayFormat", listDayFormat);
 
                         var startStr = calendar.formatIso(calendar.view.activeStart);
                         var endStr = calendar.formatIso(calendar.view.activeEnd);
@@ -436,6 +454,8 @@
                         center: 'title',
                         right: ''
                     },
+                    listDayFormat: {weekday: 'long', month: 'long', day: 'numeric'},
+                    listDaySideFormat: false
                 });
                 listingCalendar.render();
     
