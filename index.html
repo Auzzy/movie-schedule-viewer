@@ -307,6 +307,8 @@
                             var endStr = calendar.formatIso(calendar.view.activeEnd);
                             var theater = selectedTheater();
                             var title = e.currentTarget.parentNode.dataset.title;
+
+                            listingCalendar.gotoDate(startStr);
                             getMovieSchedule(theater, title, startStr, endStr).then(function(result) {
                                 showtimesToEventSources(result["showtimes"], displayInfo).forEach((eventSource) =>
                                     listingCalendar.addEventSource(eventSource)
