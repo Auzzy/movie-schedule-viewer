@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.append("scheduleretriever")
 from retriever import db as retrieverdb, theaters
 from retriever.fandango_json import load_schedules_by_day
-from retriever.movie_times_lib import collect_schedule, db_showtime_updates
+from retriever.movie_times_lib import collect_schedule, db_showtime_updates, send_error_email
 from retriever.schedule import Filter, FullSchedule
 
 import db as viewerdb
@@ -116,17 +116,20 @@ def request_show_movie(title):
 
 @app.get("/update-schedule")
 def scan():
-    print(f"Update starting at {datetime.now(timezone.utc)} UTC")
+    try:
+        print(f"Update starting at {datetime.now(timezone.utc)} UTC")
 
-    for theater in theaters.THEATER_NAMES:
-        tz = theaters.timezone(theater)
-        today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
-        date_range = (today, today + timedelta(weeks=4))
+        for theater in theaters.THEATER_NAMES:
+            tz = theaters.timezone(theater)
+            today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+            date_range = (today, today + timedelta(weeks=4))
 
-        print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
-        schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
-        if schedule:
-            showtimes = retrieverdb.store_showtimes(theater, schedule)
-            db_showtime_updates(theater, date_range, showtimes)
-    
-    return {"success": True}
+            print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
+            schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
+            if schedule:
+                showtimes = retrieverdb.store_showtimes(theater, schedule)
+                db_showtime_updates(theater, date_range, showtimes)
+
+        return {"success": True}
+    except Exception as exc:
+        send_error_email(exc)
