@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.append("scheduleretriever")
 from retriever import db as retrieverdb, theaters
 from retriever.fandango_json import load_schedules_by_day
-from retriever.movie_times_lib import collect_schedule, db_showtime_updates, send_error_email
+from retriever.movie_times_lib import collect_schedule, db_showtime_updates, send_error_email, send_deletion_report
 from retriever.schedule import Filter, FullSchedule
 
 import db as viewerdb
@@ -119,6 +119,7 @@ def scan():
     try:
         print(f"Update starting at {datetime.now(timezone.utc)} UTC")
 
+        deleted_showtimes = []
         for theater in theaters.THEATER_NAMES:
             tz = theaters.timezone(theater)
             today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -128,7 +129,10 @@ def scan():
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
                 showtimes = retrieverdb.store_showtimes(theater, schedule)
-                db_showtime_updates(theater, date_range, showtimes)
+                deleted_showtimes += db_showtime_updates(theater, date_range, showtimes)
+        
+        if deleted_showtimes:
+            send_deletion_report(deleted_showtimes)
 
         return {"success": True}
     except Exception as exc:
