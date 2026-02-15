@@ -93,7 +93,7 @@
                 return result;
             }
 
-            async function getFilteredSchedule(calendar, filterFunc) {
+            async function addAllToCalendar(calendar, filterFunc) {
                 var theater = selectedTheater();
                 var startTime = calendar.formatIso(calendar.view.activeStart);
                 var endTime = calendar.formatIso(calendar.view.activeEnd);
@@ -101,7 +101,7 @@
                     .then(function(result) {
                         var displayInfo = result["display"];
                         return result["showtimes"]
-                            .filter(filterFunc)
+                            .filter((showtime) => displayInfo[showtime["title"]]["visible"] && filterFunc(showtime))
                             .forEach((showtime) => {
                                 var eventSource = calendar.getEventSourceById(showtime["title"]);
                                 if (eventSource === null) {
@@ -119,7 +119,8 @@
             }
 
             async function getMovieSchedule(theater, title, startTime, endTime) {
-                const result = await get(`showtimes/${encodeURIComponent(theater)}/title/${encodeURIComponent(title)}/${startTime}/${endTime}`);
+                const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
+                result["showtimes"] = result["showtimes"].filter((showtime) => showtime["title"] == title);
                 return result;
             }
 
@@ -150,7 +151,7 @@
                 var toggleEl = document.getElementById(id)
                 toggleEl.addEventListener("change", function (e) {
                     if (toggle_is_checked(toggleEl)) {
-                        getFilteredSchedule(calendar, (showtime) => showtime[prop] === value);
+                        addAllToCalendar(calendar, (showtime) => showtime[prop] === value);
                     } else {
                         calendar.getEvents().forEach((event) => {
                             if (event.extendedProps[prop] === value) {
@@ -183,7 +184,7 @@
                 return toggleEl;
             }
 
-            function applyShowtimeFilters(showtimes) {
+            function applyShowtimeFilters(showtimes, displayInfo) {
                 var negativeFilters = Array.from(document.getElementById("negative-filter-toggles").children)
                     .filter((el) => !toggle_is_checked(el.id))
                     .map((el) => el.dataset.field);
@@ -191,11 +192,11 @@
                     .filter((el) => toggle_is_checked(el.id))
                     .map((el) => el.dataset.label);
                 return showtimes.filter((showtime) => {
-                    return !negativeFilters.some((field) => showtime[field]) && enabledFormats.includes(showtime["format"]);
+                    return displayInfo[showtime["title"]]["visible"] && !negativeFilters.some((field) => showtime[field]) && enabledFormats.includes(showtime["format"]);
                 });
             }
 
-            function updateNegativeFilters(calendar, showtimes) {
+            function updateNegativeFilters(calendar, showtimes, displayInfo) {
                 var negativeFilterTogglesEl = document.getElementById("negative-filter-toggles");
                 var negativeFilters = [["Open Captions", "is_open_caption"], ["No A-List", "no_alist"]];
                 negativeFilters.forEach(([label, field]) => {
@@ -208,7 +209,7 @@
 
                         createToggleSlider(calendar, id, field);
                     }
-                    if (showtimes.some((s) => s[field])) {
+                    if (showtimes.some((s) => displayInfo[s["title"]]["visible"] && s[field])) {
                         toggleEl.style.removeProperty("display");
                     } else {
                         toggleEl.style.display = "none";
@@ -216,7 +217,7 @@
                 });
             }
 
-            function updateFormatFilters(calendar, showtimes) {
+            function updateFormatFilters(calendar, showtimes, displayInfo) {
                 var fmtFilterTogglesEl = document.getElementById("format-filter-toggles");
                 var newFormats = Array.from(new Set(showtimes.map((s) => s["format"])));
                 var oldFormats = Array.from(fmtFilterTogglesEl.children).map((el) => el.dataset.label);
@@ -230,7 +231,7 @@
 
                         createToggleSlider(calendar, id, "format", fmt);
                     }
-                    if (showtimes.some((s) => s["format"] == fmt)) {
+                    if (showtimes.some((s) => displayInfo[s["title"]]["visible"] && s["format"] == fmt)) {
                         toggleEl.style.removeProperty("display");
                     } else {
                         toggleEl.style.display = "none";
@@ -238,9 +239,9 @@
                 });
             }
 
-            function updateFilters(calendar, showtimes) {
-                updateFormatFilters(calendar, showtimes);
-                updateNegativeFilters(calendar, showtimes);
+            function updateFilters(calendar, showtimes, displayInfo) {
+                updateFormatFilters(calendar, showtimes, displayInfo);
+                updateNegativeFilters(calendar, showtimes, displayInfo);
             }
 
             function openListingClickHandler(event, showtimesCalendar, listingCalendar, displayInfo) {
@@ -303,7 +304,7 @@
                     insertSortedChild("shown-movies", entry);
 
                     showMovie(title);
-                    getFilteredSchedule(showtimesCalendar, (showtime) => showtime["title"] === title);
+                    addAllToCalendar(showtimesCalendar, (showtime) => showtime["title"] === title);
                 } else {
                     entry.style.background = "white";
                     entry.style.color = movieDisplayInfo["background_color"];
@@ -351,10 +352,11 @@
 
             function loadShowtimesCallback(result, showtimesCalendar, listingCalendar) {
                 var allShowtimes = result["showtimes"];
+                var displayInfo = result["display"];
 
-                updateFilters(showtimesCalendar, allShowtimes);
+                updateFilters(showtimesCalendar, allShowtimes, displayInfo);
 
-                var filteredShowtimes = applyShowtimeFilters(allShowtimes);
+                var filteredShowtimes = applyShowtimeFilters(allShowtimes, displayInfo);
                 var displayInfo = result["display"];
 
                 showtimesToEventSources(filteredShowtimes, displayInfo).forEach((eventSource) => {

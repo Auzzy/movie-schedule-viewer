@@ -79,13 +79,13 @@ def _load_movie_display_info(showtimes):
             "background_color": bg_color,
             "text_color": text_color
         }
-    filtered_showtimes = [s for s in showtimes if display_info[s["title"]]["visible"]]
-    return display_info, filtered_showtimes
+    return display_info
 
 
 def _load_showtimes(theater, first_time, last_time, title=None):
     last_time = last_time or first_time
     return retrieverdb.load_showtimes(theater, first_time, last_time, title)
+
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
@@ -95,13 +95,8 @@ def read_root():
 @app.get("/showtimes/{theater}/{first_time}/{last_time}")
 def request_schedule_date_range(theater: str, first_time: datetime, last_time: datetime):
     showtimes = _load_showtimes(theater, first_time, last_time)
-    display_info, filtered_showtimes = _load_movie_display_info(showtimes)
-    return {"showtimes": filtered_showtimes, "display": display_info}
-
-@app.get("/showtimes/{theater}/title/{title}/{first_time}/{last_time}")
-def request_movie_schedule_date_range(theater: str, title: str, first_time: datetime, last_time: datetime):
-    showtimes = _load_showtimes(theater, first_time, last_time, title)
-    return {"showtimes": showtimes}
+    display_info = _load_movie_display_info(showtimes)
+    return {"showtimes": showtimes, "display": display_info}
 
 @app.put("/movies/{title}/hide")
 def request_hide_movie(title):
