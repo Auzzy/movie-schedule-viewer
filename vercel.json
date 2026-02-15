@@ -36,5 +36,8 @@
     }, {
         "path": "/update-schedule",
         "schedule": "0 22 * * *"
+    }, {
+        "path": "/send-deletion-report",
+        "schedule": "0 5 * * *"
     }]
 }

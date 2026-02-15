@@ -119,7 +119,6 @@ def scan():
     try:
         print(f"Update starting at {datetime.now(timezone.utc)} UTC")
 
-        deleted_showtimes = []
         for theater in theaters.THEATER_NAMES:
             tz = theaters.timezone(theater)
             today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -129,11 +128,17 @@ def scan():
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
                 showtimes = retrieverdb.store_showtimes(theater, schedule)
-                deleted_showtimes += db_showtime_updates(theater, date_range, showtimes)
-        
-        if deleted_showtimes:
-            send_deletion_report(deleted_showtimes)
+                db_showtime_updates(theater, date_range, showtimes)
 
         return {"success": True}
     except Exception as exc:
         send_error_email(exc)
+
+
+@app.get("/send-deletion-report")
+def scan_deletions():
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday = today - timedelta(days=1)
+    deleted_showtimes = retrieverdb.load_deleted_showtimes(yesterday, today)
+
+    send_deletion_report(deleted_showtimes)
