@@ -408,7 +408,7 @@
                 var showtimeDetails = showtime.extendedProps;
 
                 var startDisplayStr = timeStr(showtime.start);
-                var endDisplayStr = timeStr(showtime.end);
+                var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
                 var headerEl = document.createElement("h2");
                 headerEl.innerHTML = showtimeDetails["name"];
