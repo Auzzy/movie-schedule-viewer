@@ -120,7 +120,7 @@
 
             async function getMovieSchedule(theater, title, startTime, endTime) {
                 const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
-                result["showtimes"] = result["showtimes"].filter((showtime) => showtime["title"] == title);
+                result["showtimes"] = result["showtimes"].filter((showtime) => showtime["title"] === title);
                 return result;
             }
 
@@ -196,20 +196,28 @@
                 });
             }
 
-            function updateNegativeFilters(calendar, showtimes, displayInfo) {
-                var negativeFilterTogglesEl = document.getElementById("negative-filter-toggles");
-                var negativeFilters = [["Open Captions", "is_open_caption"], ["No A-List", "no_alist"]];
-                negativeFilters.forEach(([label, field]) => {
+            function updateFiltersByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, showtimes, displayInfo) {
+                var parentEl = document.getElementById(parentId);
+                filterDefinitions.forEach(([label, field, value]) => {
+                    var filterFunc = (s) => displayInfo[s["title"]]["visible"] && s[field] === value;
                     var id = `${label.toLowerCase().replace(" ", "-")}-toggle`;
-                    var toggleEl = negativeFilterTogglesEl.querySelector(`#${id}`);
+                    var toggleEl = document.getElementById(id);
                     if (toggleEl === null) {
                         toggleEl = createToggleElement(id, label);
                         toggleEl.dataset.field = field;
-                        negativeFilterTogglesEl.appendChild(toggleEl);
+                        toggleEl.dataset.value = value;
 
-                        createToggleSlider(calendar, id, field);
+                        var openListingButton = createMovieListOpenListingButton(
+                            showtimesCalendar, listingCalendar, displayInfo, filterFunc);
+                        openListingButton.style.marginRight = "10px";
+                        openListingButton.style.float = "right";
+                        toggleEl.appendChild(openListingButton);
+
+                        parentEl.appendChild(toggleEl);
+
+                        createToggleSlider(showtimesCalendar, id, field, value);
                     }
-                    if (showtimes.some((s) => displayInfo[s["title"]]["visible"] && s[field])) {
+                    if (showtimes.some(filterFunc)) {
                         toggleEl.style.removeProperty("display");
                     } else {
                         toggleEl.style.display = "none";
@@ -217,34 +225,18 @@
                 });
             }
 
-            function updateFormatFilters(calendar, showtimes, displayInfo) {
-                var fmtFilterTogglesEl = document.getElementById("format-filter-toggles");
+            function updateFilters(showtimesCalendar, listingCalendar, showtimes, displayInfo) {
                 var newFormats = Array.from(new Set(showtimes.map((s) => s["format"])));
-                var oldFormats = Array.from(fmtFilterTogglesEl.children).map((el) => el.dataset.label);
+                var oldFormats = Array.from(document.getElementById("format-filter-toggles").children).map((el) => el.dataset.label);
                 var formats = newFormats.concat(oldFormats).toSorted();
-                formats.forEach((fmt) => {
-                    var id = `${fmt.toLowerCase().replace(" ", "-")}-toggle`;
-                    var toggleEl = document.getElementById(id);
-                    if (toggleEl === null) {
-                        toggleEl = createToggleElement(id, fmt);
-                        fmtFilterTogglesEl.appendChild(toggleEl);
+                var formatFilters = formats.map((fmt) => [fmt, "format", fmt]);
+                updateFiltersByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo);
 
-                        createToggleSlider(calendar, id, "format", fmt);
-                    }
-                    if (showtimes.some((s) => displayInfo[s["title"]]["visible"] && s["format"] == fmt)) {
-                        toggleEl.style.removeProperty("display");
-                    } else {
-                        toggleEl.style.display = "none";
-                    }
-                });
+                var negativeFilters = [["Open Captions", "is_open_caption", true], ["No A-List", "no_alist", true]];
+                updateFiltersByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo);
             }
 
-            function updateFilters(calendar, showtimes, displayInfo) {
-                updateFormatFilters(calendar, showtimes, displayInfo);
-                updateNegativeFilters(calendar, showtimes, displayInfo);
-            }
-
-            function openListingClickHandler(event, showtimesCalendar, listingCalendar, displayInfo) {
+            function openListingClickHandler(event, showtimesCalendar, listingCalendar, displayInfo, showtimeFilter) {
                 event.stopPropagation();
 
                 var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeStart);
@@ -252,17 +244,21 @@
                 var theater = selectedTheater();
                 var title = event.currentTarget.parentNode.dataset.title;
 
-                listingCalendar.gotoDate(startStr);
-                getMovieSchedule(theater, title, startStr, endStr).then(function(result) {
-                    showtimesToEventSources(result["showtimes"], displayInfo).forEach((eventSource) =>
-                        listingCalendar.addEventSource(eventSource)
-                    );
+                var showtimeFilter = showtimeFilter === undefined ? (s) => s["title"] === title : showtimeFilter;
 
-                    listingCalendar.render();
-                });
+                listingCalendar.gotoDate(startStr);
+                getSchedule(theater, startStr, endStr)
+                    .then((result) => result["showtimes"].filter(showtimeFilter))
+                    .then(function(showtimes) {
+                        showtimesToEventSources(showtimes, displayInfo).forEach((eventSource) =>
+                            listingCalendar.addEventSource(eventSource)
+                        );
+
+                        listingCalendar.render();
+                    });
             }
 
-            function createMovieListOpenListingButton(showtimesCalendar, listingCalendar, displayInfo) {
+            function createMovieListOpenListingButton(showtimesCalendar, listingCalendar, displayInfo, showtimeFilter) {
                 var openListingEl = document.createElement('button');
                 openListingEl.style.cursor = "pointer";
                 openListingEl.style.backgroundColor = "transparent";
@@ -270,7 +266,9 @@
                 openListingEl.innerHTML = "&#x1f4c5";
                 openListingEl.style.maxHeight = "21px";
                 openListingEl.popoverTargetElement = document.getElementById("movie-showtime-listing");
-                openListingEl.addEventListener("click", (e) => openListingClickHandler(e, showtimesCalendar, listingCalendar, displayInfo));
+                openListingEl.addEventListener("click", (e) => {
+                    return openListingClickHandler(e, showtimesCalendar, listingCalendar, displayInfo, showtimeFilter)
+                });
                 return openListingEl;
             }
 
@@ -352,7 +350,7 @@
                 var allShowtimes = result["showtimes"];
                 var displayInfo = result["display"];
 
-                updateFilters(showtimesCalendar, allShowtimes, displayInfo);
+                updateFilters(showtimesCalendar, listingCalendar, allShowtimes, displayInfo);
 
                 var filteredShowtimes = applyShowtimeFilters(allShowtimes, displayInfo);
 
