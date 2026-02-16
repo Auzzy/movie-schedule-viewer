@@ -293,9 +293,7 @@
                 }
 
                 var title = entry.dataset.title;
-                var titleShowtimes = showtimesCalendar.getEvents().filter((evt) => evt.title === title);
                 var titleEventSource = showtimesCalendar.getEventSourceById(title);
-                var li = movieListEl.querySelector(`[data-title="${title}"]`);
                 if (titleEventSource === null) {
                     entry.style.background = movieDisplayInfo["background_color"];
                     entry.style.color = movieDisplayInfo["text_color"];
@@ -357,7 +355,6 @@
                 updateFilters(showtimesCalendar, allShowtimes, displayInfo);
 
                 var filteredShowtimes = applyShowtimeFilters(allShowtimes, displayInfo);
-                var displayInfo = result["display"];
 
                 showtimesToEventSources(filteredShowtimes, displayInfo).forEach((eventSource) => {
                     showtimesCalendar.addEventSource(eventSource)
