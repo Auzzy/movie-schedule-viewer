@@ -24,11 +24,7 @@
                     "start": showtime["start_time"],
                     "end": showtime["end_time"],
                     "extendedProps": {
-                        "name": showtime["title"],
-                        "theater": showtime["theater"],
-                        "format": showtime["format"],
-                        "is_open_caption": showtime["is_open_caption"],
-                        "no_alist": showtime["no_alist"],
+                        "showtime": showtime
                     }
                 }
             }
@@ -154,7 +150,7 @@
                         addAllToCalendar(calendar, (showtime) => showtime[prop] === value);
                     } else {
                         calendar.getEvents().forEach((event) => {
-                            if (event.extendedProps[prop] === value) {
+                            if (event.extendedProps["showtime"][prop] === value) {
                                 event.remove();
                             }
                         });
@@ -225,7 +221,19 @@
                 });
             }
 
+            function reloadDisplayInfo() {
+                var movieList = Array.from(document.getElementById("shown-movies").children).concat(
+                    Array.from(document.getElementById("hidden-movies").children));
+
+                return Object.fromEntries(movieList.map((el) => [
+                    el.dataset.title,
+                    {"visible": el.dataset.visible === "true", "background_color": el.style.background, "text_color": el.style.color}
+                ]));
+            }
+
             function updateFilters(showtimesCalendar, listingCalendar, showtimes, displayInfo) {
+                var displayInfo = displayInfo === undefined ? reloadDisplayInfo() : displayInfo;
+
                 var newFormats = Array.from(new Set(showtimes.map((s) => s["format"])));
                 var oldFormats = Array.from(document.getElementById("format-filter-toggles").children).map((el) => el.dataset.label);
                 var formats = newFormats.concat(oldFormats).toSorted();
@@ -279,7 +287,7 @@
                 return titleEl;
             }
 
-            function movieListClickHandler(showtimesCalendar, movieListEl, entry, movieDisplayInfo) {
+            function movieListClickHandler(showtimesCalendar, listingCalendar, movieListEl, entry, movieDisplayInfo) {
                 function insertSortedChild(parentId, entry) {
                     var parentEl = document.getElementById(parentId);
                     var nextEntry = Array.from(parentEl.children).find((el) => el.dataset.title > entry.dataset.title);
@@ -300,7 +308,10 @@
                     insertSortedChild("shown-movies", entry);
 
                     showMovie(title);
-                    addAllToCalendar(showtimesCalendar, (showtime) => showtime["title"] === title);
+                    addAllToCalendar(showtimesCalendar, (showtime) => showtime["title"] === title).then(function() {
+                        var showtimes = showtimesCalendar.getEvents().map((e) => e.extendedProps["showtime"]);
+                        updateFilters(showtimesCalendar, listingCalendar, showtimes);
+                    });
                 } else {
                     entry.style.background = "white";
                     entry.style.color = movieDisplayInfo["background_color"];
@@ -310,10 +321,14 @@
                     
                     hideMovie(title);
                     titleEventSource.remove();
+                    var showtimes = showtimesCalendar.getEvents().map((e) => e.extendedProps["showtime"]);
+                    updateFilters(showtimesCalendar, listingCalendar, showtimes);
                 }
             }
 
-            function createMovieListItemEl(showtimesCalendar, movieListEl, title, movieDisplayInfo) {
+            function createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo) {
+                var movieDisplayInfo = displayInfo[title];
+
                 var entry = document.createElement('div');
                 entry.dataset.title = title;
                 entry.style.display = "flex";
@@ -332,13 +347,14 @@
                     entry.style.color = movieDisplayInfo["background_color"];
                 }
 
-                entry.addEventListener("click", (e) => movieListClickHandler(showtimesCalendar, movieListEl, entry, movieDisplayInfo));
+                entry.addEventListener("click", (e) => {
+                    return movieListClickHandler(showtimesCalendar, listingCalendar, movieListEl, entry, movieDisplayInfo)
+                });
                 return entry;
             }
 
             function createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo) {
-                var movieDisplayInfo = displayInfo[title];
-                var entry = createMovieListItemEl(showtimesCalendar, movieListEl, title, movieDisplayInfo);
+                var entry = createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo);
                 entry.appendChild(createMovieListTitleEl(title));
                 entry.appendChild(createMovieListOpenListingButton(showtimesCalendar, listingCalendar, displayInfo));
 
@@ -408,13 +424,13 @@
 
             function showtimeClickHandler(eventClickInfo) {
                 var showtime = eventClickInfo.event;
-                var showtimeDetails = showtime.extendedProps;
+                var showtimeDetails = showtime.extendedProps["showtime"];
 
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
                 var headerEl = document.createElement("h2");
-                headerEl.innerHTML = showtimeDetails["name"];
+                headerEl.innerHTML = showtimeDetails["title"];
                 headerEl.style.margin = "0px 0px 5px 0px";
 
                 var timeEl = document.createElement("div");
