@@ -280,8 +280,18 @@
                 return titleEl;
             }
 
-            function movieListClickHandler(event, showtimesCalendar, movieListEl, entry, movieDisplayInfo) {
-                var title = event.currentTarget.dataset.title;
+            function movieListClickHandler(showtimesCalendar, movieListEl, entry, movieDisplayInfo) {
+                function insertSortedChild(parentId, entry) {
+                    var parentEl = document.getElementById(parentId);
+                    var nextEntry = Array.from(parentEl.children).find((el) => el.dataset.title > entry.dataset.title);
+                    if (nextEntry === undefined) {
+                        parentEl.appendChild(entry);
+                    } else {
+                        nextEntry.before(entry);
+                    }
+                }
+
+                var title = entry.dataset.title;
                 var titleShowtimes = showtimesCalendar.getEvents().filter((evt) => evt.title === title);
                 var titleEventSource = showtimesCalendar.getEventSourceById(title);
                 var li = movieListEl.querySelector(`[data-title="${title}"]`);
@@ -289,10 +299,8 @@
                     entry.style.background = movieDisplayInfo["background_color"];
                     entry.style.color = movieDisplayInfo["text_color"];
                     entry.dataset.visible = "true";
-
-                    Array.from(document.getElementById("shown-movies").children)
-                        .find((el) => el.dataset.title > title)
-                        .before(entry);
+                    
+                    insertSortedChild("shown-movies", entry);
 
                     showMovie(title);
                     getFilteredSchedule(showtimesCalendar, (showtime) => showtime["title"] === title);
@@ -301,10 +309,8 @@
                     entry.style.color = movieDisplayInfo["background_color"];
                     entry.dataset.visible = "false";
 
-                    Array.from(document.getElementById("hidden-movies").children)
-                        .find((el) => el.dataset.title > title)
-                        .before(entry);
-
+                    insertSortedChild("hidden-movies", entry);
+                    
                     hideMovie(title);
                     titleEventSource.remove();
                 }
@@ -329,7 +335,7 @@
                     entry.style.color = movieDisplayInfo["background_color"];
                 }
 
-                entry.addEventListener("click", (e) => movieListClickHandler(e, showtimesCalendar, movieListEl, entry, movieDisplayInfo));
+                entry.addEventListener("click", (e) => movieListClickHandler(showtimesCalendar, movieListEl, entry, movieDisplayInfo));
                 return entry;
             }
 
