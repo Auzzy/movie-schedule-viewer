@@ -191,7 +191,7 @@
                 });
             }
 
-            function updateFiltersByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, showtimes, displayInfo) {
+            function updateFiltersByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, showtimes, displayInfo, updateDisplay) {
                 var parentEl = document.getElementById(parentId);
                 filterDefinitions.forEach(([label, field, value]) => {
                     var filterFunc = (s) => s[field] === value;
@@ -213,17 +213,20 @@
                         createToggleSlider(showtimesCalendar, id, field, value);
                     }
 
-                    var switchEl = toggleEl.querySelector("label.switch");
                     var filteredShowtimes = showtimes.filter(filterFunc);
-                    if (filteredShowtimes.length > 0) {
-                        toggleEl.style.removeProperty("display");
-                        if (filteredShowtimes.some((s) => displayInfo[s["title"]]["visible"])) {
-                            switchEl.classList.remove("disabled");
+                    if (updateDisplay) {
+                        if (filteredShowtimes.length > 0) {
+                            toggleEl.style.removeProperty("display");
                         } else {
-                            switchEl.classList.add("disabled");
+                            toggleEl.style.display = "none";
                         }
+                    }
+
+                    var switchEl = toggleEl.querySelector("label.switch");
+                    if (filteredShowtimes.some((s) => displayInfo[s["title"]]["visible"])) {
+                        switchEl.classList.remove("disabled");
                     } else {
-                        toggleEl.style.display = "none";
+                        switchEl.classList.add("disabled");
                     }
                 });
             }
@@ -239,16 +242,17 @@
             }
 
             function updateFilters(showtimesCalendar, listingCalendar, showtimes, displayInfo) {
+                var updateDisplay = showtimes !== undefined;
+                var showtimes = showtimes === undefined ? showtimesCalendar.getEvents().map((e) => e.extendedProps["showtime"]) : showtimes;
                 var displayInfo = displayInfo === undefined ? reloadDisplayInfo() : displayInfo;
 
                 var newFormats = Array.from(new Set(showtimes.map((s) => s["format"])));
                 var oldFormats = Array.from(document.getElementById("format-filter-toggles").children).map((el) => el.dataset.label);
-                var formats = newFormats.concat(oldFormats).toSorted();
-                var formatFilters = formats.map((fmt) => [fmt, "format", fmt]);
-                updateFiltersByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo);
+                var formatFilters = newFormats.concat(oldFormats).toSorted().map((fmt) => [fmt, "format", fmt]);
+                updateFiltersByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo, updateDisplay);
 
                 var negativeFilters = [["Open Captions", "is_open_caption", true], ["No A-List", "no_alist", true]];
-                updateFiltersByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo);
+                updateFiltersByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo, updateDisplay);
             }
 
             function openListingClickHandler(event, showtimesCalendar, listingCalendar, displayInfo, showtimeFilter) {
@@ -316,8 +320,7 @@
 
                     showMovie(title);
                     addAllToCalendar(showtimesCalendar, (showtime) => showtime["title"] === title).then(function() {
-                        var showtimes = showtimesCalendar.getEvents().map((e) => e.extendedProps["showtime"]);
-                        updateFilters(showtimesCalendar, listingCalendar, showtimes);
+                        updateFilters(showtimesCalendar, listingCalendar);
                     });
                 } else {
                     entry.style.background = "white";
@@ -328,8 +331,7 @@
                     
                     hideMovie(title);
                     titleEventSource.remove();
-                    var showtimes = showtimesCalendar.getEvents().map((e) => e.extendedProps["showtime"]);
-                    updateFilters(showtimesCalendar, listingCalendar, showtimes);
+                    updateFilters(showtimesCalendar, listingCalendar);
                 }
             }
 
