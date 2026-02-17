@@ -173,7 +173,6 @@
 
                 var toggleEl = Object.assign(document.createElement("div"), {id: id});
                 toggleEl.dataset.label = label;
-                toggleEl.style.display = "none";
                 toggleEl.appendChild(switchEl);
                 toggleEl.appendChild(labelEl);
 
@@ -195,7 +194,7 @@
             function updateFiltersByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, showtimes, displayInfo) {
                 var parentEl = document.getElementById(parentId);
                 filterDefinitions.forEach(([label, field, value]) => {
-                    var filterFunc = (s) => displayInfo[s["title"]]["visible"] && s[field] === value;
+                    var filterFunc = (s) => s[field] === value;
                     var id = `${label.toLowerCase().replace(" ", "-")}-toggle`;
                     var toggleEl = document.getElementById(id);
                     if (toggleEl === null) {
@@ -213,8 +212,16 @@
 
                         createToggleSlider(showtimesCalendar, id, field, value);
                     }
-                    if (showtimes.some(filterFunc)) {
+
+                    var switchEl = toggleEl.querySelector("label.switch");
+                    var filteredShowtimes = showtimes.filter(filterFunc);
+                    if (filteredShowtimes.length > 0) {
                         toggleEl.style.removeProperty("display");
+                        if (filteredShowtimes.some((s) => displayInfo[s["title"]]["visible"])) {
+                            switchEl.classList.remove("disabled");
+                        } else {
+                            switchEl.classList.add("disabled");
+                        }
                     } else {
                         toggleEl.style.display = "none";
                     }
