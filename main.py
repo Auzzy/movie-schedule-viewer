@@ -1,12 +1,17 @@
 import itertools
 import sys
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from fastapi import Body, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from ical.calendar import Calendar
+from ical.calendar_stream import IcsCalendarStream
+from ical.event import Event
+from pydantic import BaseModel
 
 sys.path.append("scheduleretriever")
 from retriever import db as retrieverdb, theaters
@@ -63,6 +68,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Type"]
 )
 
 
@@ -107,6 +113,32 @@ def request_hide_movie(title):
 def request_show_movie(title):
     viewerdb.show_movie(title)
     return {}
+
+
+def _showtimes_to_ics(showtimes):
+    calendar = Calendar()
+    for showtime in showtimes:
+        description = showtime["format"]
+        if showtime["is_open_caption"]:
+            description += ", Open Caption"
+        if showtime["no_alist"]:
+            description += ", No A-List"
+        calendar.events.append(
+            Event(
+                summary=showtime["title"],
+                description=description,
+                location=showtime["theater"],
+                start=datetime.fromisoformat(showtime["start_time"]),
+                end=datetime.fromisoformat(showtime["end_time"]),
+            )
+        )
+
+    return IcsCalendarStream.calendar_to_ics(calendar)
+
+@app.post("/export-ics")
+def request_export_ics(payload: dict[str, Any]):
+    ics_stream = _showtimes_to_ics(payload["showtimes"])
+    return Response(content=ics_stream, media_type="text/calendar")
 
 
 @app.get("/update-schedule")

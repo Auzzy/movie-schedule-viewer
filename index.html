@@ -57,13 +57,18 @@
             async function request(method, path, bodyJson) {
                 const url = `/${path}`;
                 try {
-                    const response = await fetch(url, {method: method, body: JSON.stringify(bodyJson)});
+                    const response = await fetch(url, {method: method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(bodyJson)});
                     if (!response.ok) {
                         throw new Error(`Response status: ${response.status}`);
                     }
 
-                    const result = await response.json();
-                    return result;
+                    if (response.headers.get("content-type") == "application/json") {
+                        const result = await response.json();
+                        return result;
+                    } else {
+                        const result = await response.text();
+                        return result;
+                    }
                 } catch (error) {
                     console.error(error.message);
                 }
@@ -71,6 +76,11 @@
             }
             async function get(path) {
                 const result = await request("GET", path);
+                return result;
+            }
+
+            async function post(path, bodyJson) {
+                const result = await request("POST", path, bodyJson);
                 return result;
             }
 
@@ -371,7 +381,7 @@
                 document.getElementById(sublistId).appendChild(entry);
             }
 
-            function loadShowtimesCallback(result, showtimesCalendar, listingCalendar) {
+            function loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar) {
                 var allShowtimes = result["showtimes"];
                 var displayInfo = result["display"];
 
@@ -386,6 +396,7 @@
                 var minStartHour = allShowtimes.map((s) => new Date(s["start_time"]).getHours()).toSorted()[0]
                 if (minStartHour !== undefined) {
                     showtimesCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
+                    scheduleCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
                 }
 
                 showtimesCalendar.render();
@@ -395,6 +406,27 @@
                 Object.entries(displayInfo).toSorted().forEach(([title, display], i) => {
                     createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo);
                 });
+            }
+
+            function renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar) {
+                if (showtimesCalendar.view.type !== "timeGridDay") {
+                    scheduleCalendarEl.parentElement.style.display = "none";
+                } else {
+                    var minStartHour = showtimesCalendar.getEvents().map((s) => s.start.getHours()).toSorted()[0]
+                    if (minStartHour !== undefined) {
+                        scheduleCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
+                    }
+
+                    var start = showtimesCalendar.view.activeStart;
+                    var nextDate = new Date(start.getTime());
+                    nextDate.setDate(nextDate.getDate() + 1);
+                    if (showtimesCalendar.view.activeEnd.getTime() == nextDate.getTime()) {
+                        scheduleCalendar.gotoDate(start);
+                    }
+
+                    scheduleCalendarEl.parentElement.style.removeProperty("display");
+                    scheduleCalendar.render();
+                }
             }
 
             function displayListingCalendar(event, showtimesCalendar, listingCalendar) {
@@ -431,41 +463,45 @@
                 }
             }
 
-            function showtimeClickHandler(eventClickInfo) {
-                var showtime = eventClickInfo.event;
-                var showtimeDetails = showtime.extendedProps["showtime"];
+            function showtimeClickHandler(eventClickInfo, scheduleCalendar) {
+                if (eventClickInfo.jsEvent.ctrlKey) {
+                    scheduleCalendar.addEvent(eventClickInfo.event);
+                } else {
+                    var showtime = eventClickInfo.event;
+                    var showtimeDetails = showtime.extendedProps["showtime"];
 
-                var startDisplayStr = timeStr(showtime.start);
-                var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
+                    var startDisplayStr = timeStr(showtime.start);
+                    var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
-                var headerEl = document.createElement("h2");
-                headerEl.innerHTML = showtimeDetails["title"];
-                headerEl.style.margin = "0px 0px 5px 0px";
+                    var headerEl = document.createElement("h2");
+                    headerEl.innerHTML = showtimeDetails["title"];
+                    headerEl.style.margin = "0px 0px 5px 0px";
 
-                var timeEl = document.createElement("div");
-                timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
+                    var timeEl = document.createElement("div");
+                    timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
 
-                var formatStr = showtimeDetails["format"];
-                if (showtimeDetails["is_open_caption"]) {
-                    formatStr += ", Open Caption";
+                    var formatStr = showtimeDetails["format"];
+                    if (showtimeDetails["is_open_caption"]) {
+                        formatStr += ", Open Caption";
+                    }
+                    if (showtimeDetails["no_alist"]) {
+                        formatStr += ", No A-List";
+                    }
+
+                    var detailsEl = document.createElement("div");
+                    detailsEl.innerHTML = formatStr;
+
+                    var showtimeDetailsPopover = document.getElementById("showtime-details");
+                    showtimeDetailsPopover.innerHTML = "";
+                    showtimeDetailsPopover.appendChild(headerEl);
+                    showtimeDetailsPopover.appendChild(timeEl);
+                    showtimeDetailsPopover.appendChild(document.createElement("hr"));
+                    showtimeDetailsPopover.appendChild(detailsEl);
+                    showtimeDetailsPopover.showPopover();
                 }
-                if (showtimeDetails["no_alist"]) {
-                    formatStr += ", No A-List";
-                }
-
-                var detailsEl = document.createElement("div");
-                detailsEl.innerHTML = formatStr;
-
-                var showtimeDetailsPopover = document.getElementById("showtime-details");
-                showtimeDetailsPopover.innerHTML = "";
-                showtimeDetailsPopover.appendChild(headerEl);
-                showtimeDetailsPopover.appendChild(timeEl);
-                showtimeDetailsPopover.appendChild(document.createElement("hr"));
-                showtimeDetailsPopover.appendChild(detailsEl);
-                showtimeDetailsPopover.showPopover();
             }
 
-            function theaterClickHandler(event, showtimesCalendar, listingCalendar) {
+            function theaterClickHandler(event, showtimesCalendar, listingCalendar, scheduleCalendar) {
                 var theater = event.target.textContent.trim();
                 const button = document.getElementById("theater-selected");
                 button.innerHTML = theater;
@@ -480,7 +516,7 @@
                 var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeEnd);
                 clearCalendar(showtimesCalendar);
                 getSchedule(theater, startStr, endStr).then((result) => {
-                    loadShowtimesCallback(result, showtimesCalendar, listingCalendar)
+                    loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar);
                 });
             }
 
@@ -505,12 +541,46 @@
 
                         clearCalendar(showtimesCalendar);
                         getSchedule(theater, startStr, endStr).then((result) => {
-                            loadShowtimesCallback(result, showtimesCalendar, listingCalendar)
+                            loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar);
+                            renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar);
                         });
                     },
-                    eventClick: showtimeClickHandler
+                    eventClick: (event) => showtimeClickHandler(event, scheduleCalendar)
                 });
                 showtimesCalendar.render();
+
+                var scheduleCalendarEl = document.getElementById('schedule-calendar');
+                var scheduleCalendar = new FullCalendar.Calendar(scheduleCalendarEl, {
+                    initialView: 'timeGridDay',
+                    contentHeight: "auto",
+                    nextDayThreshold: '2:00:00',
+                    allDaySlot: false,
+                    slotMinTime: '09:00:00',
+                    customButtons: {
+                        exportButton: {
+                            text: 'Export ICS',
+                            click: function() {
+                                var body = {
+                                    showtimes: scheduleCalendar.getEvents()
+                                        .filter((e) => scheduleCalendar.view.activeStart <= e.start && scheduleCalendar.view.activeEnd >= e.start)
+                                        .map((e) => e.extendedProps["showtime"])
+                                }
+                                post(`export-ics`, body).then((result) => {
+                                    window.location = "data:text/calendar," + encodeURIComponent(result);
+                                });
+                            }
+                        }
+                    },
+                    headerToolbar: {
+                        right: false,
+                        center: 'exportButton',
+                        left: false
+                    },
+                    eventClick: function(clickInfo) {
+                        clickInfo.event.remove();
+                    }
+                });
+                scheduleCalendar.render();
 
                 var listingCalendarEl = document.getElementById("listing-calendar");
                 var listingCalendar = new FullCalendar.Calendar(listingCalendarEl, {
@@ -525,7 +595,6 @@
                     listDayFormat: {weekday: 'long', month: 'long', day: 'numeric'},
                     listDaySideFormat: false
                 });
-                listingCalendar.render();
 
                 document.getElementById("movie-showtime-listing").addEventListener("beforetoggle", (event) => {
                     displayListingCalendar(event, showtimesCalendar, listingCalendar);
@@ -533,7 +602,7 @@
 
                 document.querySelectorAll("#theater-options .dropdown-item").forEach(item => {
                     item.addEventListener("click", (e) => {
-                        theaterClickHandler(e, showtimesCalendar, listingCalendar);
+                        theaterClickHandler(e, showtimesCalendar, listingCalendar, scheduleCalendar);
                     });
                 });
             });
@@ -572,7 +641,14 @@
                 </div>
             </div>
             <div style="flex: 90%">
-                <div id='showtimes-calendar'></div>
+                <div style="display: flex;">
+                    <div style="flex: 83%; padding-right: 50px;">
+                        <div id='showtimes-calendar'></div>
+                    </div>
+                    <div style="flex: 17%; display: none; padding-right: 10px;">
+                        <div id='schedule-calendar'></div>
+                    </div>
+                </div>
             </div>
         </div>
     </body>
