@@ -72,6 +72,27 @@ app.add_middleware(
 )
 
 
+def _showtimes_to_ics(showtimes):
+    calendar = Calendar()
+    for showtime in showtimes:
+        description = showtime["format"]
+        if showtime["is_open_caption"]:
+            description += ", Open Caption"
+        if showtime["no_alist"]:
+            description += ", No A-List"
+        calendar.events.append(
+            Event(
+                summary=showtime["title"],
+                description=description,
+                location=showtime["theater"],
+                start=datetime.fromisoformat(showtime["start_time"]),
+                end=datetime.fromisoformat(showtime["end_time"]),
+            )
+        )
+
+    return IcsCalendarStream.calendar_to_ics(calendar)
+
+
 def _load_movie_display_info(showtimes):
     visibility = viewerdb.load_visibility()
 
@@ -99,7 +120,7 @@ def read_root():
         return homepage_html.read()
 
 @app.get("/showtimes/{theater}/{first_time}/{last_time}")
-def request_schedule_date_range(theater: str, first_time: datetime, last_time: datetime):
+def request_showtimes(theater: str, first_time: datetime, last_time: datetime):
     showtimes = _load_showtimes(theater, first_time, last_time)
     display_info = _load_movie_display_info(showtimes)
     return {"showtimes": showtimes, "display": display_info}
@@ -114,34 +135,34 @@ def request_show_movie(title):
     viewerdb.show_movie(title)
     return {}
 
-
-def _showtimes_to_ics(showtimes):
-    calendar = Calendar()
-    for showtime in showtimes:
-        description = showtime["format"]
-        if showtime["is_open_caption"]:
-            description += ", Open Caption"
-        if showtime["no_alist"]:
-            description += ", No A-List"
-        calendar.events.append(
-            Event(
-                summary=showtime["title"],
-                description=description,
-                location=showtime["theater"],
-                start=datetime.fromisoformat(showtime["start_time"]),
-                end=datetime.fromisoformat(showtime["end_time"]),
-            )
-        )
-
-    return IcsCalendarStream.calendar_to_ics(calendar)
-
 @app.post("/export-ics")
 def request_export_ics(payload: dict[str, Any]):
     ics_stream = _showtimes_to_ics(payload["showtimes"])
     return Response(content=ics_stream, media_type="text/calendar")
 
+@app.get("/schedule/{first_time}/{last_time}")
+def load_schedule(first_time: datetime, last_time: datetime):
+    schedule = viewerdb.load_schedule(first_time, last_time)
+    return {
+        "schedule": schedule
+    }
 
-@app.get("/update-schedule")
+@app.post("/schedule/{first_time}/{last_time}/clear")
+def clear_schedule(first_time: datetime, last_time: datetime):
+    schedule = viewerdb.clear_schedule(first_time, last_time)
+    return {}
+
+@app.post("/schedule/new-showtime")
+def add_showtime_to_schedule(showtime: dict[str, Any]):
+    viewerdb.add_to_schedule(showtime)
+    return {}
+
+@app.post("/schedule/remove-showtime")
+def remove_showtime_from_schedule(showtime: dict[str, Any]):
+    viewerdb.remove_from_schedule(showtime)
+    return {}
+
+@app.get("/update-showtimes")
 def scan():
     try:
         print(f"Update starting at {datetime.now(timezone.utc)} UTC")
@@ -151,16 +172,15 @@ def scan():
             today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
             date_range = (today, today + timedelta(weeks=4))
 
-            print(f"Updating the schedule for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
-            schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
-            if schedule:
-                showtimes = retrieverdb.store_showtimes(theater, schedule)
-                db_showtime_updates(theater, date_range, showtimes)
+            print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
+            showtimes = collect_schedule(theater, None, date_range, Filter.empty(), True)
+            if showtimes:
+                stored_showtimes = retrieverdb.store_showtimes(theater, showtimes)
+                db_showtime_updates(theater, date_range, stored_showtimes)
 
         return {"success": True}
     except Exception as exc:
         send_error_email(exc)
-
 
 @app.get("/send-deletion-report")
 def scan_deletions():

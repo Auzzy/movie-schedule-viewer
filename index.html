@@ -19,6 +19,8 @@
                 if (showtime["format"] != "Standard") {
                     title = `[${showtime["format"]}] ${title}`
                 }
+                delete showtime["create_time"];
+
                 return {
                     "title": title,
                     "start": showtime["start_time"],
@@ -103,7 +105,7 @@
                 var theater = selectedTheater();
                 var startTime = calendar.formatIso(calendar.view.activeStart);
                 var endTime = calendar.formatIso(calendar.view.activeEnd);
-                return getSchedule(theater, startTime, endTime)
+                return getShowtimes(theater, startTime, endTime)
                     .then(function(result) {
                         var displayInfo = result["display"];
                         return result["showtimes"]
@@ -119,14 +121,19 @@
                     });
             }
 
-            async function getSchedule(theater, startTime, endTime) {
+            async function getShowtimes(theater, startTime, endTime) {
                 const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
                 return result;
             }
 
-            async function getMovieSchedule(theater, title, startTime, endTime) {
+            async function getMovieShowtimes(theater, title, startTime, endTime) {
                 const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
                 result["showtimes"] = result["showtimes"].filter((showtime) => showtime["title"] === title);
+                return result;
+            }
+
+            async function getSchedule(startTime, endTime) {
+                const result = await get(`schedule/${startTime}/${endTime}`);
                 return result;
             }
 
@@ -136,8 +143,8 @@
             }
 
             function clearCalendar(calendar) {
-                resetMovieList();
                 calendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
+                calendar.getEvents().forEach((event, i) => event.remove());
             }
 
             function selectedTheater() {
@@ -276,7 +283,7 @@
                 var showtimeFilter = showtimeFilter === undefined ? (s) => s["title"] === title : showtimeFilter;
 
                 listingCalendar.gotoDate(startStr);
-                getSchedule(theater, startStr, endStr)
+                getShowtimes(theater, startStr, endStr)
                     .then((result) => result["showtimes"].filter(showtimeFilter))
                     .then(function(showtimes) {
                         showtimesToEventSources(showtimes, displayInfo).forEach((eventSource) =>
@@ -408,56 +415,65 @@
                 });
             }
 
-            function renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar) {
-                if (showtimesCalendar.view.type !== "timeGridDay") {
-                    scheduleCalendarEl.parentElement.style.display = "none";
-                } else {
-                    var minStartHour = showtimesCalendar.getEvents().map((s) => s.start.getHours()).toSorted()[0]
-                    if (minStartHour !== undefined) {
-                        scheduleCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
-                    }
-
-                    var start = showtimesCalendar.view.activeStart;
-                    var nextDate = new Date(start.getTime());
-                    nextDate.setDate(nextDate.getDate() + 1);
-                    if (showtimesCalendar.view.activeEnd.getTime() == nextDate.getTime()) {
-                        scheduleCalendar.gotoDate(start);
-                    }
-
-                    scheduleCalendarEl.parentElement.style.removeProperty("display");
-                    scheduleCalendar.render();
+            function getListingConfig(showtimesCalendar) {
+                var listingView = "";
+                var titleFormat = false;
+                var listDayFormat = false;
+                switch (showtimesCalendar.view.type) {
+                    case "dayGridMonth":
+                        listingView = "listMonth";
+                        titleFormat = {month: 'long', year: 'numeric'};
+                        listDayFormat = {weekday: 'long', month: 'long', day: 'numeric'};
+                        break;
+                    case "timeGridWeek":
+                        listingView = "listWeek";
+                        titleFormat = {month: 'long', day: 'numeric', year: 'numeric'};
+                        listDayFormat = {weekday: 'long', month: 'long', day: 'numeric'};
+                        break;
+                    case "timeGridDay":
+                        listingView = "listDay";
+                        titleFormat = {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'};
+                        break;
+                    default: throw new Error(`Unrecognized main calendar view type: ${showtimesCalendar.view.type}`);
                 }
+                return {view: listingView, title: titleFormat, day: listDayFormat};
+            }
+
+            function renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar) {
+                var listingConfig = getListingConfig(showtimesCalendar);
+                if (scheduleCalendar.view.type !== listingConfig["view"]) {
+                    scheduleCalendar.changeView(listingConfig["view"]);
+                    scheduleCalendar.setOption("listDayFormat", listingConfig["day"]);
+                }
+
+                var minStartHour = showtimesCalendar.getEvents().map((s) => s.start.getHours()).toSorted()[0]
+                if (minStartHour !== undefined) {
+                    scheduleCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
+                }
+
+                scheduleCalendar.gotoDate(showtimesCalendar.view.activeStart);
+                        
+                var startStr = scheduleCalendar.formatIso(showtimesCalendar.view.activeStart);
+                var endStr = scheduleCalendar.formatIso(showtimesCalendar.view.activeEnd);
+
+                getSchedule(startStr, endStr).then((result) => {
+                    clearCalendar(scheduleCalendar);
+                    showtimesToEvents(result["schedule"]).forEach((event) => {
+                        scheduleCalendar.addEvent(event);
+                    });
+                    scheduleCalendar.render();
+                });
             }
 
             function displayListingCalendar(event, showtimesCalendar, listingCalendar) {
                 if (event.newState === "open") {
-                    var listingView = "";
-                    var titleFormat = false;
-                    var listDayFormat = false;
-                    switch (showtimesCalendar.view.type) {
-                        case "dayGridMonth":
-                            listingView = "listMonth";
-                            titleFormat = {month: 'long', year: 'numeric'};
-                            listDayFormat = {weekday: 'long', month: 'long', day: 'numeric'};
-                            break;
-                        case "timeGridWeek":
-                            listingView = "listWeek";
-                            titleFormat = {month: 'long', day: 'numeric', year: 'numeric'};
-                            listDayFormat = {weekday: 'long', month: 'long', day: 'numeric'};
-                            break;
-                        case "timeGridDay":
-                            listingView = "listDay";
-                            titleFormat = {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'};
-                            break;
-                        default: throw new Error(`Unrecognized main calendar view type: ${showtimesCalendar.view.type}`);
-                    }
-
-                    listingCalendar.setOption("titleFormat", titleFormat);
-                    listingCalendar.setOption("listDayFormat", listDayFormat);
+                    var listingConfig = getListingConfig(showtimesCalendar);
+                    listingCalendar.setOption("titleFormat", listingConfig["title"]);
+                    listingCalendar.setOption("listDayFormat", listingConfig["day"]);
 
                     var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeStart);
                     var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeEnd);
-                    listingCalendar.changeView(listingView, {"start": startStr, "end": endStr});
+                    listingCalendar.changeView(listingConfig["view"], {"start": startStr, "end": endStr});
                     listingCalendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
                     listingCalendar.render();
                 }
@@ -465,7 +481,16 @@
 
             function showtimeClickHandler(eventClickInfo, scheduleCalendar) {
                 if (eventClickInfo.jsEvent.ctrlKey) {
-                    scheduleCalendar.addEvent(eventClickInfo.event);
+                    var srcShowtime = eventClickInfo.event.extendedProps["showtime"];
+                    delete srcShowtime["create_time"];
+                    var isScheduled = scheduleCalendar.getEvents().some((e) => {
+                        var evtShowtime = e.extendedProps["showtime"];
+                        return Object.keys(srcShowtime).every((key) => srcShowtime[key] === evtShowtime[key]);
+                    });
+                    if (!isScheduled) {
+                        scheduleCalendar.addEvent(eventClickInfo.event);
+                        post("schedule/new-showtime", eventClickInfo.event.extendedProps["showtime"]);
+                    }
                 } else {
                     var showtime = eventClickInfo.event;
                     var showtimeDetails = showtime.extendedProps["showtime"];
@@ -514,8 +539,9 @@
 
                 var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeStart);
                 var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeEnd);
+                resetMovieList();
                 clearCalendar(showtimesCalendar);
-                getSchedule(theater, startStr, endStr).then((result) => {
+                getShowtimes(theater, startStr, endStr).then((result) => {
                     loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar);
                 });
             }
@@ -539,8 +565,9 @@
                         var startStr = showtimesCalendar.formatIso(dateInfo.start);
                         var theater = selectedTheater();
 
+                        resetMovieList();
                         clearCalendar(showtimesCalendar);
-                        getSchedule(theater, startStr, endStr).then((result) => {
+                        getShowtimes(theater, startStr, endStr).then((result) => {
                             loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar);
                             renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar);
                         });
@@ -551,11 +578,12 @@
 
                 var scheduleCalendarEl = document.getElementById('schedule-calendar');
                 var scheduleCalendar = new FullCalendar.Calendar(scheduleCalendarEl, {
-                    initialView: 'timeGridDay',
+                    initialView: 'listMonth',
                     contentHeight: "auto",
                     nextDayThreshold: '2:00:00',
                     allDaySlot: false,
                     slotMinTime: '09:00:00',
+                    listDaySideFormat: false,
                     customButtons: {
                         exportButton: {
                             text: 'Export ICS',
@@ -569,15 +597,30 @@
                                     window.location = "data:text/calendar," + encodeURIComponent(result);
                                 });
                             }
+                        },
+                        clearButton: {
+                            text: "Clear",
+                            click: function(clickInfo) {
+                                var startTime = scheduleCalendar.formatIso(scheduleCalendar.view.activeStart);
+                                var endTime = scheduleCalendar.formatIso(scheduleCalendar.view.activeEnd);
+                                post(`schedule/${startTime}/${endTime}/clear`);
+                                
+                                scheduleCalendar.getEvents()
+                                    .filter((e) => scheduleCalendar.view.activeStart <= e.start && scheduleCalendar.view.activeEnd >= e.start)
+                                    .forEach((e) => e.remove());
+                            }
                         }
                     },
                     headerToolbar: {
-                        right: false,
+                        left: false,
                         center: 'exportButton',
-                        left: false
+                        right: "clearButton"
                     },
                     eventClick: function(clickInfo) {
-                        clickInfo.event.remove();
+                        if (clickInfo.jsEvent.ctrlKey) {
+                            clickInfo.event.remove();
+                            post("schedule/remove-showtime", clickInfo.event.extendedProps["showtime"]);
+                        }
                     }
                 });
                 scheduleCalendar.render();
@@ -645,7 +688,7 @@
                     <div style="flex: 83%; padding-right: 50px;">
                         <div id='showtimes-calendar'></div>
                     </div>
-                    <div style="flex: 17%; display: none; padding-right: 10px;">
+                    <div style="flex: 17%; padding-right: 10px;">
                         <div id='schedule-calendar'></div>
                     </div>
                 </div>

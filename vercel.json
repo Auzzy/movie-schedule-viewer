@@ -1,40 +1,40 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "crons": [{
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 0 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 2 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 4 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 6 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 8 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 10 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 12 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 14 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 16 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 18 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 20 * * *"
     }, {
-        "path": "/update-schedule",
+        "path": "/update-showtimes",
         "schedule": "0 22 * * *"
     }, {
         "path": "/send-deletion-report",
