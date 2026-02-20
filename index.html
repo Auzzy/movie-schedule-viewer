@@ -696,45 +696,49 @@
             });
         </script>
     </head>
-    <body>
+    <body style="overflow: hidden;">
         <div popover id="showtime-details" style="width: 15%; height: 40%; padding: 10px;"></div>
         <div popover id="movie-showtime-listing" style="width: 25%; height: 65%;">
             <div id='listing-calendar'></div>
         </div>
         <div style="display: flex;">
-            <div style="flex: 10%; padding-right: 50px">
-                <div class="dropdown" style="margin-top: 20px;">
-                    <button id="theater-selected" class="dropdown-toggle">AMC Methuen</button>
-                    <div id="theater-options" class="dropdown-menu">
-                        <a href="#" class="dropdown-item">AMC Methuen</a>
-                        <a href="#" class="dropdown-item">AMC Tyngsboro</a>
-                        <a href="#" class="dropdown-item">AMC Boston Common</a>
-                        <a href="#" class="dropdown-item">AMC Causeway</a>
-                        <a href="#" class="dropdown-item">Apple Hooksett</a>
-                        <a href="#" class="dropdown-item">Apple Merrimack</a>
-                        <a href="#" class="dropdown-item">Showcase Randolph</a>
-                        <a href="#" class="dropdown-item">O'Neil Epping</a>
-                        <a href="#" class="dropdown-item">O'Neil Londonderry</a>
+            <div style="flex: 10%">
+                <div style="height: 98vh; overflow-y: scroll; overflow-x: hidden; scrollbar-width: none; margin-right: 25px">
+                    <div class="dropdown" style="margin-top: 20px;">
+                        <button id="theater-selected" class="dropdown-toggle">AMC Methuen</button>
+                        <div id="theater-options" class="dropdown-menu">
+                            <a href="#" class="dropdown-item">AMC Methuen</a>
+                            <a href="#" class="dropdown-item">AMC Tyngsboro</a>
+                            <a href="#" class="dropdown-item">AMC Boston Common</a>
+                            <a href="#" class="dropdown-item">AMC Causeway</a>
+                            <a href="#" class="dropdown-item">Apple Hooksett</a>
+                            <a href="#" class="dropdown-item">Apple Merrimack</a>
+                            <a href="#" class="dropdown-item">Showcase Randolph</a>
+                            <a href="#" class="dropdown-item">O'Neil Epping</a>
+                            <a href="#" class="dropdown-item">O'Neil Londonderry</a>
+                        </div>
                     </div>
-                </div>
-                <hr />
-                <div id="filter-toggles">
-                    <div id="negative-filter-toggles"></div>
-                    <div id="format-filter-toggles"></div>
-                </div>
-                <hr />
-                <div id="movie-list">
-                    <div id="shown-movies"></div>
-                    <div id="hidden-movies"></div>
+                    <hr />
+                    <div id="filter-toggles">
+                        <div id="negative-filter-toggles"></div>
+                        <div id="format-filter-toggles"></div>
+                    </div>
+                    <hr />
+                    <div id="movie-list">
+                        <div id="shown-movies"></div>
+                        <div id="hidden-movies"></div>
+                    </div>
                 </div>
             </div>
             <div style="flex: 90%">
-                <div style="display: flex;">
-                    <div style="flex: 83%; padding-right: 50px;">
-                        <div id='showtimes-calendar'></div>
-                    </div>
-                    <div style="flex: 17%; padding-right: 10px;">
-                        <div id='schedule-calendar'></div>
+                <div style="height: 98vh; overflow-y: scroll; scrollbar-width: none">
+                    <div style="display: flex;">
+                        <div style="flex: 83%; padding-right: 50px;">
+                            <div id='showtimes-calendar'></div>
+                        </div>
+                        <div style="flex: 17%; padding-right: 10px;">
+                            <div id='schedule-calendar'></div>
+                        </div>
                     </div>
                 </div>
             </div>
