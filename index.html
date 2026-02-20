@@ -107,7 +107,7 @@
                 var endTime = calendar.formatIso(calendar.view.activeEnd);
                 return getShowtimes(theater, startTime, endTime)
                     .then(function(result) {
-                        var displayInfo = result["display"];
+                        var displayInfo = reloadDisplayInfo();
                         return result["showtimes"]
                             .filter((showtime) => displayInfo[showtime["title"]]["visible"] && filterFunc(showtime))
                             .forEach((showtime) => {
@@ -219,8 +219,7 @@
                         toggleEl.dataset.field = field;
                         toggleEl.dataset.value = value;
 
-                        var openListingButton = createMovieListOpenListingButton(
-                            showtimesCalendar, listingCalendar, displayInfo, filterFunc);
+                        var openListingButton = createMovieListOpenListingButton(showtimesCalendar, listingCalendar, filterFunc);
                         openListingButton.style.marginRight = "10px";
                         openListingButton.style.float = "right";
                         toggleEl.appendChild(openListingButton);
@@ -272,7 +271,7 @@
                 updateFiltersByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo, updateDisplay);
             }
 
-            function openListingClickHandler(event, showtimesCalendar, listingCalendar, displayInfo, showtimeFilter) {
+            function openListingClickHandler(event, showtimesCalendar, listingCalendar, showtimeFilter) {
                 event.stopPropagation();
 
                 var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeStart);
@@ -286,6 +285,7 @@
                 getShowtimes(theater, startStr, endStr)
                     .then((result) => result["showtimes"].filter(showtimeFilter))
                     .then(function(showtimes) {
+                        var displayInfo = reloadDisplayInfo();
                         showtimesToEventSources(showtimes, displayInfo).forEach((eventSource) =>
                             listingCalendar.addEventSource(eventSource)
                         );
@@ -294,7 +294,7 @@
                     });
             }
 
-            function createMovieListOpenListingButton(showtimesCalendar, listingCalendar, displayInfo, showtimeFilter) {
+            function createMovieListOpenListingButton(showtimesCalendar, listingCalendar, showtimeFilter) {
                 var openListingEl = document.createElement('button');
                 openListingEl.style.cursor = "pointer";
                 openListingEl.style.backgroundColor = "transparent";
@@ -303,7 +303,7 @@
                 openListingEl.style.maxHeight = "21px";
                 openListingEl.popoverTargetElement = document.getElementById("movie-showtime-listing");
                 openListingEl.addEventListener("click", (e) => {
-                    return openListingClickHandler(e, showtimesCalendar, listingCalendar, displayInfo, showtimeFilter)
+                    return openListingClickHandler(e, showtimesCalendar, listingCalendar, showtimeFilter)
                 });
                 return openListingEl;
             }
@@ -352,9 +352,7 @@
                 }
             }
 
-            function createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo) {
-                var movieDisplayInfo = displayInfo[title];
-
+            function createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, movieDisplayInfo) {
                 var entry = document.createElement('div');
                 entry.dataset.title = title;
                 entry.style.display = "flex";
@@ -379,10 +377,10 @@
                 return entry;
             }
 
-            function createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo) {
-                var entry = createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo);
+            function createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, movieDisplayInfo) {
+                var entry = createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, movieDisplayInfo);
                 entry.appendChild(createMovieListTitleEl(title));
-                entry.appendChild(createMovieListOpenListingButton(showtimesCalendar, listingCalendar, displayInfo));
+                entry.appendChild(createMovieListOpenListingButton(showtimesCalendar, listingCalendar));
 
                 var sublistId = entry.dataset.visible == "true" ? "shown-movies" : "hidden-movies";
                 document.getElementById(sublistId).appendChild(entry);
@@ -411,7 +409,7 @@
                 resetMovieList();
                 var movieListEl = document.getElementById("movie-list");
                 Object.entries(displayInfo).toSorted().forEach(([title, display], i) => {
-                    createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, displayInfo);
+                    createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, display);
                 });
             }
 
