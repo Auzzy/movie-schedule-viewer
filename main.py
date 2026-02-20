@@ -22,39 +22,6 @@ from retriever.schedule import Filter, FullSchedule
 import db as viewerdb
 
 
-# (text, background)
-MOVIE_COLORS = [
-    ("white", "blue"),
-    ("white", "green"),
-    ("black", "lime"),
-    ("white", "slateblue"),
-    ("white", "slategray"),
-    ("white", "maroon"),
-    ("black", "skyblue"),
-    ("white", "crimson"),
-    ("white", "magenta"),
-    ("black", "orange"),
-    ("black", "gold"),
-    ("black", "yellow"),
-    ("black", "pink"),
-    ("black", "coral"),
-    ("black", "violet"),
-    ("black", "palegreen"),
-    ("white", "saddlebrown"),
-    ("black", "aquamarine"),
-    ("black", "burlywood"),
-    ("white", "olive"),
-    ("black", "greenyellow"),
-    ("black", "rosybrown"),
-    ("black", "thistle"),
-    ("black", "sandybrown"),
-    ("black", "salmon"),
-    ("black", "lightgray"),
-    ("white", "brown"),
-    ("white", "purple")
-]
-
-
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -93,20 +60,12 @@ def _showtimes_to_ics(showtimes):
     return IcsCalendarStream.calendar_to_ics(calendar)
 
 
-def _load_movie_display_info(showtimes):
+def _load_visibility(theater, first_time, last_time):
+    showtimes = _load_showtimes(theater, first_time, last_time)
     visibility = viewerdb.load_visibility()
 
     titles = {s["title"] for s in showtimes}
-    color_iter = itertools.cycle(iter(MOVIE_COLORS))
-    display_info = {}
-    for title in titles:
-        text_color, bg_color = next(color_iter)
-        display_info[title] = {
-            "visible": visibility.get(title, True),
-            "background_color": bg_color,
-            "text_color": text_color
-        }
-    return display_info
+    return {title: visibility.get(title, True) for title in titles}
 
 
 def _load_showtimes(theater, first_time, last_time, title=None):
@@ -122,8 +81,12 @@ def read_root():
 @app.get("/showtimes/{theater}/{first_time}/{last_time}")
 def request_showtimes(theater: str, first_time: datetime, last_time: datetime):
     showtimes = _load_showtimes(theater, first_time, last_time)
-    display_info = _load_movie_display_info(showtimes)
-    return {"showtimes": showtimes, "display": display_info}
+    return {"showtimes": showtimes}
+
+@app.get("/showtimes/{theater}/{first_time}/{last_time}/visibility")
+def request_visibility(theater: str, first_time: datetime, last_time: datetime):
+    visibility = _load_visibility(theater, first_time, last_time)
+    return {"visibility": visibility}
 
 @app.put("/movies/{title}/hide")
 def request_hide_movie(title):

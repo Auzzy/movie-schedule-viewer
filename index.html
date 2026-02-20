@@ -6,6 +6,37 @@
         <link rel="stylesheet" href="static/slider.css" />
         <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
         <script>
+			const COLORS = [
+                {text: "black", bg: "pink"},
+                {text: "black", bg: "violet"},
+                {text: "white", bg: "magenta"},
+                {text: "white", bg: "maroon"},
+                {text: "white", bg: "crimson"},
+                {text: "black", bg: "salmon"},
+                {text: "black", bg: "coral"},
+                {text: "black", bg: "orange"},
+                {text: "black", bg: "sandybrown"},
+                {text: "black", bg: "gold"},
+                {text: "black", bg: "yellow"},
+                {text: "black", bg: "greenyellow"},
+                {text: "black", bg: "palegreen"},
+                {text: "black", bg: "aquamarine"},
+                {text: "black", bg: "skyblue"},
+                {text: "black", bg: "lime"},
+                {text: "white", bg: "green"},
+                {text: "white", bg: "blue"},
+                {text: "white", bg: "purple"},
+                {text: "white", bg: "slateblue"},
+                {text: "white", bg: "slategray"},
+                {text: "white", bg: "olive"},
+                {text: "white", bg: "saddlebrown"},
+                {text: "white", bg: "brown"},
+                {text: "black", bg: "rosybrown"},
+                {text: "black", bg: "burlywood"},
+                {text: "black", bg: "thistle"},
+            ];
+
+
             function timeStr(date) {
                 var hoursRaw = date.getHours() % 12;
                 var hours = hoursRaw == 0 ? 12 : hoursRaw;
@@ -49,7 +80,8 @@
                 return baseShowtimeToEventSource(showtime["title"], [showtimeToEvent(showtime)], displayInfo);
             }
 
-            function showtimesToEventSources(showtimes, displayInfo) {
+            function showtimesToEventSources(showtimes) {
+                var displayInfo = reloadDisplayInfo();
                 var showtimesByTitle = Object.groupBy(showtimes, (evt) => evt["title"]);
                 return Object.entries(showtimesByTitle).map(([title, showtimes]) => {
                     return baseShowtimeToEventSource(title, showtimesToEvents(showtimes), displayInfo);
@@ -121,6 +153,11 @@
                     });
             }
 
+            async function getVisibility(theater, startTime, endTime) {
+                const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}/visibility`);
+                return result;
+            }
+
             async function getShowtimes(theater, startTime, endTime) {
                 const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
                 return result;
@@ -138,8 +175,10 @@
             }
 
             function resetMovieList() {
-                var movieListEl = document.getElementById("movie-list");
-                movieListEl.innerHTML = "<div id=\"shown-movies\"></div><div id=\"hidden-movies\"></div>";
+                // var movieListEl = document.getElementById("movie-list");
+                // movieListEl.innerHTML = "<div id=\"shown-movies\"></div><div id=\"hidden-movies\"></div>";
+                document.getElementById("shown-movies").innerHTML = "";
+                document.getElementById("hidden-movies").innerHTML = "";
             }
 
             function clearCalendar(calendar) {
@@ -196,7 +235,7 @@
                 return toggleEl;
             }
 
-            function applyShowtimeFilters(showtimes, displayInfo) {
+            function applyShowtimeFilters(showtimes, visibility) {
                 var negativeFilters = Array.from(document.getElementById("negative-filter-toggles").children)
                     .filter((el) => !toggle_is_checked(el.id))
                     .map((el) => el.dataset.field);
@@ -204,11 +243,11 @@
                     .filter((el) => toggle_is_checked(el.id))
                     .map((el) => el.dataset.label);
                 return showtimes.filter((showtime) => {
-                    return displayInfo[showtime["title"]]["visible"] && !negativeFilters.some((field) => showtime[field]) && enabledFormats.includes(showtime["format"]);
+                    return visibility[showtime["title"]] && !negativeFilters.some((field) => showtime[field]) && enabledFormats.includes(showtime["format"]);
                 });
             }
 
-            function updateFiltersByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, showtimes, displayInfo, updateDisplay) {
+            function updateFiltersByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, showtimes, visibility, updateDisplay) {
                 var parentEl = document.getElementById(parentId);
                 filterDefinitions.forEach(([label, field, value]) => {
                     var filterFunc = (s) => s[field] === value;
@@ -239,7 +278,7 @@
                     }
 
                     var switchEl = toggleEl.querySelector("label.switch");
-                    if (filteredShowtimes.some((s) => displayInfo[s["title"]]["visible"])) {
+                    if (filteredShowtimes.some((s) => visibility[s["title"]])) {
                         switchEl.classList.remove("disabled");
                     } else {
                         switchEl.classList.add("disabled");
@@ -253,22 +292,27 @@
 
                 return Object.fromEntries(movieList.map((el) => [
                     el.dataset.title,
-                    {"visible": el.dataset.visible === "true", "background_color": el.style.background, "text_color": el.style.color}
+                    {"visible": el.dataset.visible === "true", "background_color": el.dataset.bgColor, "text_color": el.dataset.textColor}
                 ]));
             }
 
-            function updateFilters(showtimesCalendar, listingCalendar, showtimes, displayInfo) {
+            function reloadVisibility() {
+                var displayInfo = reloadDisplayInfo();
+                return Object.fromEntries(Object.entries(displayInfo).map(([title, info]) => [title, info["visible"]]));
+            }
+
+            function updateFilters(showtimesCalendar, listingCalendar, showtimes, visibility) {
                 var updateDisplay = showtimes !== undefined;
                 var showtimes = showtimes === undefined ? showtimesCalendar.getEvents().map((e) => e.extendedProps["showtime"]) : showtimes;
-                var displayInfo = displayInfo === undefined ? reloadDisplayInfo() : displayInfo;
+                var visibility = visibility === undefined ? reloadVisibility() : visibility;
 
                 var newFormats = Array.from(new Set(showtimes.map((s) => s["format"])));
                 var oldFormats = Array.from(document.getElementById("format-filter-toggles").children).map((el) => el.dataset.label);
                 var formatFilters = newFormats.concat(oldFormats).toSorted().map((fmt) => [fmt, "format", fmt]);
-                updateFiltersByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo, updateDisplay);
+                updateFiltersByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, showtimes, visibility, updateDisplay);
 
                 var negativeFilters = [["Open Captions", "is_open_caption", true], ["No A-List", "no_alist", true]];
-                updateFiltersByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes, displayInfo, updateDisplay);
+                updateFiltersByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes, visibility, updateDisplay);
             }
 
             function openListingClickHandler(event, showtimesCalendar, listingCalendar, showtimeFilter) {
@@ -285,8 +329,7 @@
                 getShowtimes(theater, startStr, endStr)
                     .then((result) => result["showtimes"].filter(showtimeFilter))
                     .then(function(showtimes) {
-                        var displayInfo = reloadDisplayInfo();
-                        showtimesToEventSources(showtimes, displayInfo).forEach((eventSource) =>
+                        showtimesToEventSources(showtimes).forEach((eventSource) =>
                             listingCalendar.addEventSource(eventSource)
                         );
 
@@ -315,7 +358,7 @@
                 return titleEl;
             }
 
-            function movieListClickHandler(showtimesCalendar, listingCalendar, movieListEl, entry, movieDisplayInfo) {
+            function movieListClickHandler(showtimesCalendar, listingCalendar, entry, bgColor, textColor) {
                 function insertSortedChild(parentId, entry) {
                     var parentEl = document.getElementById(parentId);
                     var nextEntry = Array.from(parentEl.children).find((el) => el.dataset.title > entry.dataset.title);
@@ -329,8 +372,8 @@
                 var title = entry.dataset.title;
                 var titleEventSource = showtimesCalendar.getEventSourceById(title);
                 if (titleEventSource === null) {
-                    entry.style.background = movieDisplayInfo["background_color"];
-                    entry.style.color = movieDisplayInfo["text_color"];
+                    entry.style.background = bgColor;
+                    entry.style.color = textColor;
                     entry.dataset.visible = "true";
                     
                     insertSortedChild("shown-movies", entry);
@@ -341,7 +384,7 @@
                     });
                 } else {
                     entry.style.background = "white";
-                    entry.style.color = movieDisplayInfo["background_color"];
+                    entry.style.color = bgColor;
                     entry.dataset.visible = "false";
 
                     insertSortedChild("hidden-movies", entry);
@@ -352,33 +395,35 @@
                 }
             }
 
-            function createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, movieDisplayInfo) {
+            function createMovieListItemEl(showtimesCalendar, listingCalendar, title, visible, bgColor, textColor) {
                 var entry = document.createElement('div');
                 entry.dataset.title = title;
                 entry.style.display = "flex";
                 entry.style.alignItems = "center";
-                entry.style.border = `thin solid ${movieDisplayInfo["background_color"]}`;
+                entry.style.border = `thin solid ${bgColor}`;
                 entry.style.borderRadius = "5px";
                 entry.style.margin = "5px";
                 entry.style.padding = "5px";
                 entry.style.cursor = "pointer";
-                entry.dataset.visible = movieDisplayInfo["visible"].toString();
-                if (movieDisplayInfo["visible"]) {
-                    entry.style.background = movieDisplayInfo["background_color"];
-                    entry.style.color = movieDisplayInfo["text_color"];
+                entry.dataset.visible = visible.toString();
+                entry.dataset.bgColor = bgColor;
+                entry.dataset.textColor = textColor;
+                if (visible) {
+                    entry.style.background = bgColor;
+                    entry.style.color = textColor;
                 } else {
                     entry.style.background = "white";
-                    entry.style.color = movieDisplayInfo["background_color"];
+                    entry.style.color = bgColor;
                 }
 
                 entry.addEventListener("click", (e) => {
-                    return movieListClickHandler(showtimesCalendar, listingCalendar, movieListEl, entry, movieDisplayInfo)
+                    return movieListClickHandler(showtimesCalendar, listingCalendar, entry, bgColor, textColor)
                 });
                 return entry;
             }
 
-            function createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, movieDisplayInfo) {
-                var entry = createMovieListItemEl(showtimesCalendar, listingCalendar, movieListEl, title, movieDisplayInfo);
+            function createMovieListEntry(showtimesCalendar, listingCalendar, title, visible, bgColor, textColor) {
+                var entry = createMovieListItemEl(showtimesCalendar, listingCalendar, title, visible, bgColor, textColor);
                 entry.appendChild(createMovieListTitleEl(title));
                 entry.appendChild(createMovieListOpenListingButton(showtimesCalendar, listingCalendar));
 
@@ -386,31 +431,31 @@
                 document.getElementById(sublistId).appendChild(entry);
             }
 
-            function loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar) {
-                var allShowtimes = result["showtimes"];
-                var displayInfo = result["display"];
+            function loadShowtimesCallback(showtimes, visibility, showtimesCalendar, listingCalendar, scheduleCalendar) {
+                resetMovieList();
+                Object.entries(visibility).toSorted()
+                    .map(([title, visible], i) => {
+                        var {text, bg} = COLORS[i % COLORS.length];
+                        return [title, visible, bg, text];
+                    })
+                    .forEach(([title, visible, bgColor, textColor]) => {
+                        createMovieListEntry(showtimesCalendar, listingCalendar, title, visible, bgColor, textColor);
+                    });
 
-                updateFilters(showtimesCalendar, listingCalendar, allShowtimes, displayInfo);
+                updateFilters(showtimesCalendar, listingCalendar, showtimes, visibility);
 
-                var filteredShowtimes = applyShowtimeFilters(allShowtimes, displayInfo);
-
-                showtimesToEventSources(filteredShowtimes, displayInfo).forEach((eventSource) => {
+                var filteredShowtimes = applyShowtimeFilters(showtimes, visibility);
+                showtimesToEventSources(filteredShowtimes).forEach((eventSource) => {
                     showtimesCalendar.addEventSource(eventSource)
                 });
 
-                var minStartHour = allShowtimes.map((s) => new Date(s["start_time"]).getHours()).toSorted()[0]
+                var minStartHour = showtimes.map((s) => new Date(s["start_time"]).getHours()).toSorted()[0]
                 if (minStartHour !== undefined) {
                     showtimesCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
                     scheduleCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
                 }
 
                 showtimesCalendar.render();
-
-                resetMovieList();
-                var movieListEl = document.getElementById("movie-list");
-                Object.entries(displayInfo).toSorted().forEach(([title, display], i) => {
-                    createMovieListEntry(showtimesCalendar, listingCalendar, movieListEl, title, display);
-                });
             }
 
             function getListingConfig(showtimesCalendar) {
@@ -539,9 +584,10 @@
                 var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeEnd);
                 resetMovieList();
                 clearCalendar(showtimesCalendar);
-                getShowtimes(theater, startStr, endStr).then((result) => {
-                    loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar);
-                });
+                Promise.all([getShowtimes(theater, startStr, endStr), getVisibility(theater, startStr, endStr)])
+                    .then(([showtimesResult, visibilityResult]) => {
+                        loadShowtimesCallback(showtimesResult["showtimes"], visibilityResult["visibility"], showtimesCalendar, listingCalendar, scheduleCalendar);
+                    });
             }
 
             document.addEventListener('DOMContentLoaded', function() {
@@ -565,10 +611,11 @@
 
                         resetMovieList();
                         clearCalendar(showtimesCalendar);
-                        getShowtimes(theater, startStr, endStr).then((result) => {
-                            loadShowtimesCallback(result, showtimesCalendar, listingCalendar, scheduleCalendar);
-                            renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar);
-                        });
+                        Promise.all([getShowtimes(theater, startStr, endStr), getVisibility(theater, startStr, endStr)])
+                            .then(([showtimesResult, visibilityResult]) => {
+                                loadShowtimesCallback(showtimesResult["showtimes"], visibilityResult["visibility"], showtimesCalendar, listingCalendar, scheduleCalendar);
+                                renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar);
+                            });
                     },
                     eventClick: (event) => showtimeClickHandler(event, scheduleCalendar)
                 });
