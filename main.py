@@ -149,6 +149,5 @@ def scan():
 def scan_deletions():
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday = today - timedelta(days=1)
-    deleted_showtimes = retrieverdb.load_deleted_showtimes(yesterday, today)
 
-    send_deletion_report(deleted_showtimes)
+    send_deletion_report(yesterday)
