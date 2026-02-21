@@ -13,13 +13,10 @@ from ical.calendar_stream import IcsCalendarStream
 from ical.event import Event
 from pydantic import BaseModel
 
-sys.path.append("scheduleretriever")
-from retriever import db as retrieverdb, theaters
+from retriever import db, theaters
 from retriever.fandango_json import load_schedules_by_day
 from retriever.movie_times_lib import collect_schedule, db_showtime_updates, send_error_email, send_deletion_report
 from retriever.schedule import Filter, FullSchedule
-
-import db as viewerdb
 
 
 app = FastAPI()
@@ -62,7 +59,7 @@ def _showtimes_to_ics(showtimes):
 
 def _load_visibility(theater, first_time, last_time):
     showtimes = _load_showtimes(theater, first_time, last_time)
-    visibility = viewerdb.load_visibility()
+    visibility = db.load_visibility()
 
     titles = {s["title"] for s in showtimes}
     return {title: visibility.get(title, True) for title in titles}
@@ -70,7 +67,7 @@ def _load_visibility(theater, first_time, last_time):
 
 def _load_showtimes(theater, first_time, last_time, title=None):
     last_time = last_time or first_time
-    return retrieverdb.load_showtimes(theater, first_time, last_time, title)
+    return db.load_showtimes(theater, first_time, last_time, title)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -90,12 +87,12 @@ def request_visibility(theater: str, first_time: datetime, last_time: datetime):
 
 @app.put("/movies/{title}/hide")
 def request_hide_movie(title):
-    viewerdb.hide_movie(title)
+    db.hide_movie(title)
     return {}
 
 @app.put("/movies/{title}/show")
 def request_show_movie(title):
-    viewerdb.show_movie(title)
+    db.show_movie(title)
     return {}
 
 @app.post("/export-ics")
@@ -105,24 +102,24 @@ def request_export_ics(payload: dict[str, Any]):
 
 @app.get("/schedule/{first_time}/{last_time}")
 def load_schedule(first_time: datetime, last_time: datetime):
-    schedule = viewerdb.load_schedule(first_time, last_time)
+    schedule = db.load_schedule(first_time, last_time)
     return {
         "schedule": schedule
     }
 
 @app.post("/schedule/{first_time}/{last_time}/clear")
 def clear_schedule(first_time: datetime, last_time: datetime):
-    schedule = viewerdb.clear_schedule(first_time, last_time)
+    schedule = db.clear_schedule(first_time, last_time)
     return {}
 
 @app.post("/schedule/new-showtime")
 def add_showtime_to_schedule(showtime: dict[str, Any]):
-    viewerdb.add_to_schedule(showtime)
+    db.add_to_schedule(showtime)
     return {}
 
 @app.post("/schedule/remove-showtime")
 def remove_showtime_from_schedule(showtime: dict[str, Any]):
-    viewerdb.remove_from_schedule(showtime)
+    db.remove_from_schedule(showtime)
     return {}
 
 @app.get("/update-showtimes")
@@ -138,7 +135,7 @@ def scan():
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
             showtimes = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if showtimes:
-                stored_showtimes = retrieverdb.store_showtimes(theater, showtimes)
+                stored_showtimes = db.store_showtimes(theater, showtimes)
                 db_showtime_updates(theater, date_range, stored_showtimes)
 
         return {"success": True}
