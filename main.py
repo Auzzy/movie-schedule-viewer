@@ -122,6 +122,17 @@ def remove_showtime_from_schedule(showtime: dict[str, Any]):
     db.remove_from_schedule(showtime)
     return {}
 
+@app.get("/theaters/last-updated")
+def request_theaters_last_updated():
+    theaters_last_update = db.theaters_last_update()
+    updates_in_local_tz = {}
+    for theater, last_update_utc_str in theaters_last_update.items():
+        last_update_utc = datetime.fromisoformat(last_update_utc_str)
+        last_update_tz = last_update_utc.astimezone(theaters.timezone(theater))
+        updates_in_local_tz[theater] = last_update_tz.isoformat()
+
+    return {"updates": updates_in_local_tz}
+
 @app.get("/update-showtimes")
 def scan():
     try:

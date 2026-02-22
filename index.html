@@ -5,6 +5,7 @@
         <link rel="stylesheet" href="static/dropdown.css" />
         <link rel="stylesheet" href="static/slider.css" />
         <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.18/dayjs.min.js" integrity="sha512-FwNWaxyfy2XlEINoSnZh1JQ5TRRtGow0D6XcmAWmYCRgvqOUTnzCxPc9uF35u5ZEpirk1uhlPVA19tflhvnW1g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
         <script>
 			const COLORS = [
                 {text: "black", bg: "pink"},
@@ -32,6 +33,18 @@
                 {text: "black", bg: "rosybrown"},
                 {text: "black", bg: "burlywood"},
                 {text: "black", bg: "thistle"},
+            ];
+
+            const THEATERS = [
+                "AMC Methuen",
+                "AMC Tyngsboro",
+                "AMC Boston Common",
+                "AMC Causeway",
+                "Apple Hooksett",
+                "Apple Merrimack",
+                "Showcase Randolph",
+                "O'Neil Epping",
+                "O'Neil Londonderry"
             ];
 
 
@@ -173,10 +186,21 @@
             }
 
             function resetMovieList() {
-                // var movieListEl = document.getElementById("movie-list");
-                // movieListEl.innerHTML = "<div id=\"shown-movies\"></div><div id=\"hidden-movies\"></div>";
                 document.getElementById("shown-movies").innerHTML = "";
                 document.getElementById("hidden-movies").innerHTML = "";
+            }
+
+            async function refreshTheatersLastUpdated() {
+                return get("theaters/last-updated").then(function(result) {
+                    var dropdownEl = document.getElementById("theater-options");
+                    Object.entries(result["updates"]).forEach(([theater, timestampStr]) => {
+                        var theaterEl = dropdownEl.querySelector(`[data-theater="${theater}"]`);
+                        var timeEl = theaterEl.querySelector("[data-iso]");
+                        timeEl.dataset.iso = timestampStr;
+                        timeEl.innerHTML = dayjs(timestampStr).format("ddd, MMM D @ HH:mm");
+                    });
+                    document.getElementById("theater-selected").innerHTML = Array.from(document.getElementById("theater-options").children)[0].innerHTML;
+                });
             }
 
             function clearCalendar(calendar) {
@@ -185,7 +209,7 @@
             }
 
             function selectedTheater() {
-                var rawTheater = document.getElementById("theater-selected").innerHTML;
+                var rawTheater = document.getElementById("theater-selected").dataset.theater;
                 return rawTheater === undefined || rawTheater == null ? "AMC Methuen" : rawTheater;
             }
 
@@ -431,6 +455,8 @@
 
             function loadShowtimesCallback(showtimes, visibility, showtimesCalendar, listingCalendar, scheduleCalendar) {
                 resetMovieList();
+                refreshTheatersLastUpdated();
+
                 Object.entries(visibility).toSorted()
                     .map(([title, visible], i) => {
                         var {text, bg} = COLORS[i % COLORS.length];
@@ -568,9 +594,13 @@
             }
 
             function theaterClickHandler(event, showtimesCalendar, listingCalendar, scheduleCalendar) {
-                var theater = event.target.textContent.trim();
+                var selected = event.target.parentElement;
+                var theater = selected.dataset.theater;
                 const button = document.getElementById("theater-selected");
-                button.innerHTML = theater;
+                button.innerHTML = selected.innerHTML;
+                button.dataset.theater = theater;
+
+                console.log
 
                 // Visual feedback
                 button.style.transform = 'scale(0.95)';
@@ -588,7 +618,32 @@
                     });
             }
 
+            function createTheaterSelectorEl(theater) {
+                var nameEl = Object.assign(document.createElement("div"), {innerHTML: theater});
+
+                var lastUpdatedTimeEl = document.createElement("span");
+                lastUpdatedTimeEl.dataset.iso = "";
+
+                var lastUpdatedEl = Object.assign(document.createElement("div"), {innerHTML: "Updated "});
+                Object.assign(lastUpdatedEl.style, {color: "gray", fontSize: "10px"});
+                lastUpdatedEl.appendChild(lastUpdatedTimeEl);
+
+                var dropdownItemEl = Object.assign(document.createElement("a"), {href: "#", className: "dropdown-item"});
+                dropdownItemEl.dataset.theater = theater;
+                dropdownItemEl.appendChild(nameEl);
+                dropdownItemEl.appendChild(lastUpdatedEl);
+
+                var theaterOptionsEl = document.getElementById("theater-options");
+                theaterOptionsEl.appendChild(dropdownItemEl);
+            }
+
+
             document.addEventListener('DOMContentLoaded', function() {
+                THEATERS.forEach(createTheaterSelectorEl);
+                refreshTheatersLastUpdated().then(() => {
+                    document.getElementById("theater-selected").innerHTML = Array.from(document.getElementById("theater-options").children)[0].innerHTML;
+                });
+
                 var showtimesCalendarEl = document.getElementById('showtimes-calendar');
                 var showtimesCalendar = new FullCalendar.Calendar(showtimesCalendarEl, {
                     initialView: 'dayGridMonth',
@@ -704,18 +759,8 @@
             <div style="flex: 10%">
                 <div style="height: 98vh; overflow-y: scroll; overflow-x: hidden; scrollbar-width: none; margin-right: 25px">
                     <div class="dropdown" style="margin-top: 20px;">
-                        <button id="theater-selected" class="dropdown-toggle">AMC Methuen</button>
-                        <div id="theater-options" class="dropdown-menu">
-                            <a href="#" class="dropdown-item">AMC Methuen</a>
-                            <a href="#" class="dropdown-item">AMC Tyngsboro</a>
-                            <a href="#" class="dropdown-item">AMC Boston Common</a>
-                            <a href="#" class="dropdown-item">AMC Causeway</a>
-                            <a href="#" class="dropdown-item">Apple Hooksett</a>
-                            <a href="#" class="dropdown-item">Apple Merrimack</a>
-                            <a href="#" class="dropdown-item">Showcase Randolph</a>
-                            <a href="#" class="dropdown-item">O'Neil Epping</a>
-                            <a href="#" class="dropdown-item">O'Neil Londonderry</a>
-                        </div>
+                        <button id="theater-selected" class="dropdown-toggle"></button>
+                        <div id="theater-options" class="dropdown-menu"></div>
                     </div>
                     <hr />
                     <div id="filter-toggles">
