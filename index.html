@@ -532,51 +532,50 @@
                 }
             }
 
-            function showtimeClickHandler(eventClickInfo, scheduleCalendar) {
-                if (eventClickInfo.jsEvent.ctrlKey) {
-                    var srcShowtime = eventClickInfo.event.extendedProps["showtime"];
-                    delete srcShowtime["create_time"];
-                    var isScheduled = scheduleCalendar.getEvents().some((e) => {
-                        var evtShowtime = e.extendedProps["showtime"];
-                        return Object.keys(srcShowtime).every((key) => srcShowtime[key] === evtShowtime[key]);
-                    });
-                    if (!isScheduled) {
-                        scheduleCalendar.addEvent(eventClickInfo.event);
-                        post("schedule/new-showtime", eventClickInfo.event.extendedProps["showtime"]);
-                    }
-                } else {
-                    var showtime = eventClickInfo.event;
-                    var showtimeDetails = showtime.extendedProps["showtime"];
-
-                    var startDisplayStr = timeStr(showtime.start);
-                    var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
-
-                    var headerEl = document.createElement("h2");
-                    headerEl.innerHTML = showtimeDetails["title"];
-                    headerEl.style.margin = "0px 0px 5px 0px";
-
-                    var timeEl = document.createElement("div");
-                    timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
-
-                    var formatStr = showtimeDetails["format"];
-                    if (showtimeDetails["is_open_caption"]) {
-                        formatStr += ", Open Caption";
-                    }
-                    if (showtimeDetails["no_alist"]) {
-                        formatStr += ", No A-List";
-                    }
-
-                    var detailsEl = document.createElement("div");
-                    detailsEl.innerHTML = formatStr;
-
-                    var showtimeDetailsPopover = document.getElementById("showtime-details");
-                    showtimeDetailsPopover.innerHTML = "";
-                    showtimeDetailsPopover.appendChild(headerEl);
-                    showtimeDetailsPopover.appendChild(timeEl);
-                    showtimeDetailsPopover.appendChild(document.createElement("hr"));
-                    showtimeDetailsPopover.appendChild(detailsEl);
-                    showtimeDetailsPopover.showPopover();
+            function addToSchedule(event, scheduleCalendar) {
+                var srcShowtime = event.extendedProps["showtime"];
+                delete srcShowtime["create_time"];
+                var isScheduled = scheduleCalendar.getEvents().some((e) => {
+                    var evtShowtime = e.extendedProps["showtime"];
+                    return Object.keys(srcShowtime).every((key) => srcShowtime[key] === evtShowtime[key]);
+                });
+                if (!isScheduled) {
+                    scheduleCalendar.addEvent(event);
+                    post("schedule/new-showtime", event.extendedProps["showtime"]);
                 }
+            }
+
+            function openShowtimePopup(showtime) {
+                var showtimeDetails = showtime.extendedProps["showtime"];
+
+                var startDisplayStr = timeStr(showtime.start);
+                var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
+
+                var headerEl = document.createElement("h2");
+                headerEl.innerHTML = showtimeDetails["title"];
+                headerEl.style.margin = "0px 0px 5px 0px";
+
+                var timeEl = document.createElement("div");
+                timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
+
+                var formatStr = showtimeDetails["format"];
+                if (showtimeDetails["is_open_caption"]) {
+                    formatStr += ", Open Caption";
+                }
+                if (showtimeDetails["no_alist"]) {
+                    formatStr += ", No A-List";
+                }
+
+                var detailsEl = document.createElement("div");
+                detailsEl.innerHTML = formatStr;
+
+                var showtimeDetailsPopover = document.getElementById("showtime-details");
+                showtimeDetailsPopover.innerHTML = "";
+                showtimeDetailsPopover.appendChild(headerEl);
+                showtimeDetailsPopover.appendChild(timeEl);
+                showtimeDetailsPopover.appendChild(document.createElement("hr"));
+                showtimeDetailsPopover.appendChild(detailsEl);
+                showtimeDetailsPopover.showPopover();
             }
 
             function theaterClickHandler(event, showtimesCalendar, listingCalendar, scheduleCalendar) {
@@ -655,7 +654,13 @@
                                 renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar);
                             });
                     },
-                    eventClick: (event) => showtimeClickHandler(event, scheduleCalendar)
+                    eventClick: (clickInfo) => {
+                        if (clickInfo.jsEvent.ctrlKey) {
+                            addToSchedule(clickInfo.event, scheduleCalendar);
+                        } else {
+                            openShowtimePopup(clickInfo.event);
+                        }
+                    }
                 });
                 showtimesCalendar.render();
 
@@ -703,6 +708,8 @@
                         if (clickInfo.jsEvent.ctrlKey) {
                             clickInfo.event.remove();
                             post("schedule/remove-showtime", clickInfo.event.extendedProps["showtime"]);
+                        } else {
+                            openShowtimePopup(clickInfo.event);
                         }
                     }
                 });
@@ -719,7 +726,12 @@
                         right: ''
                     },
                     listDayFormat: {weekday: 'long', month: 'long', day: 'numeric'},
-                    listDaySideFormat: false
+                    listDaySideFormat: false,
+                    eventClick: (clickInfo) => {
+                        if (clickInfo.jsEvent.ctrlKey) {
+                            addToSchedule(clickInfo.event, scheduleCalendar);
+                        }
+                    }
                 });
 
                 document.getElementById("movie-showtime-listing").addEventListener("beforetoggle", (event) => {
