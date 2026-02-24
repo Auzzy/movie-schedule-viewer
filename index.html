@@ -99,52 +99,47 @@
                 });
             }
 
-            async function request(method, path, bodyJson) {
+            function request(method, path, bodyJson) {
                 const url = `/${path}`;
-                try {
-                    const response = await fetch(url, {method: method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(bodyJson)});
-                    if (!response.ok) {
-                        throw new Error(`Response status: ${response.status}`);
-                    }
+                return fetch(url, {method: method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(bodyJson)})
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error(`Response status: ${response.status}`);
+                        }
 
-                    if (response.headers.get("content-type") == "application/json") {
-                        const result = await response.json();
-                        return result;
-                    } else {
-                        const result = await response.text();
-                        return result;
-                    }
-                } catch (error) {
-                    console.error(error.message);
-                }
-                return {};
-            }
-            async function get(path) {
-                const result = await request("GET", path);
-                return result;
+                        if (response.headers.get("content-type") == "application/json") {
+                            return response.json();
+                        } else {
+                            return response.text();
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error(error.message);
+                        return {};
+                    });
             }
 
-            async function post(path, bodyJson) {
-                const result = await request("POST", path, bodyJson);
-                return result;
+            function get(path) {
+                return request("GET", path);
             }
 
-            async function put(path, bodyJson) {
-                const result = await request("PUT", path, bodyJson);
-                return result;
+            function post(path, bodyJson) {
+                return request("POST", path, bodyJson);
             }
 
-            async function hideMovie(title) {
-                const result = put(`movies/${encodeURIComponent(title)}/hide`);
-                return result;
+            function put(path, bodyJson) {
+                return request("PUT", path, bodyJson);
             }
 
-            async function showMovie(title) {
-                const result = put(`movies/${encodeURIComponent(title)}/show`);
-                return result;
+            function hideMovie(title) {
+                return put(`movies/${encodeURIComponent(title)}/hide`);
             }
 
-            async function addAllToCalendar(calendar, filterFunc) {
+            function showMovie(title) {
+                return put(`movies/${encodeURIComponent(title)}/show`);
+            }
+
+            function addAllToCalendar(calendar, filterFunc) {
                 var theater = selectedTheater();
                 var startTime = calendar.formatIso(calendar.view.activeStart);
                 var endTime = calendar.formatIso(calendar.view.activeEnd);
@@ -164,25 +159,16 @@
                     });
             }
 
-            async function getVisibility(theater, startTime, endTime) {
-                const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}/visibility`);
-                return result;
+            function getVisibility(theater, startTime, endTime) {
+                return get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}/visibility`);
             }
 
-            async function getShowtimes(theater, startTime, endTime) {
-                const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
-                return result;
+            function getShowtimes(theater, startTime, endTime) {
+                return get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
             }
 
-            async function getMovieShowtimes(theater, title, startTime, endTime) {
-                const result = await get(`showtimes/${encodeURIComponent(theater)}/${startTime}/${endTime}`);
-                result["showtimes"] = result["showtimes"].filter((showtime) => showtime["title"] === title);
-                return result;
-            }
-
-            async function getSchedule(startTime, endTime) {
-                const result = await get(`schedule/${startTime}/${endTime}`);
-                return result;
+            function getSchedule(startTime, endTime) {
+                return get(`schedule/${startTime}/${endTime}`);
             }
 
             function resetMovieList() {
@@ -640,9 +626,7 @@
 
             document.addEventListener('DOMContentLoaded', function() {
                 THEATERS.forEach(createTheaterSelectorEl);
-                refreshTheatersLastUpdated().then(() => {
-                    document.getElementById("theater-selected").innerHTML = Array.from(document.getElementById("theater-options").children)[0].innerHTML;
-                });
+                refreshTheatersLastUpdated();
 
                 var showtimesCalendarEl = document.getElementById('showtimes-calendar');
                 var showtimesCalendar = new FullCalendar.Calendar(showtimesCalendarEl, {
