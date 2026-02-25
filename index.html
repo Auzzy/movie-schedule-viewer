@@ -47,6 +47,18 @@
                 "O'Neil Londonderry"
             ];
 
+            var NEGATIVE_FILTER_FIELDS = {
+                "Open Captions": "is_open_caption",
+                "No A-List": "no_alist"
+            };
+
+            var GLOBAL_FILTER_FUNCS = {
+                "Show Past": {
+                    func: (s) => dayjs(s["start_time"]).isBefore(dayjs().startOf("day")),
+                    init: false
+                }
+            };
+
 
             function timeStr(date) {
                 var hoursRaw = date.getHours() % 12;
@@ -206,15 +218,14 @@
                 return toggleEl.querySelector("label input").checked;
             }
 
-            function createToggleSlider(calendar, id, prop, value) {
-                var value = value === undefined ? true : value;
+            function createToggleSlider(calendar, id, filterFunc) {
                 var toggleEl = document.getElementById(id)
                 toggleEl.addEventListener("change", function (e) {
                     if (toggle_is_checked(toggleEl)) {
-                        addAllToCalendar(calendar, (showtime) => showtime[prop] === value);
+                        addAllToCalendar(calendar, filterFunc);
                     } else {
                         calendar.getEvents().forEach((event) => {
-                            if (event.extendedProps["showtime"][prop] === value) {
+                            if (filterFunc(event.extendedProps["showtime"])) {
                                 event.remove();
                             }
                         });
@@ -246,25 +257,32 @@
             function applyShowtimeFilters(showtimes, visibility) {
                 var negativeFilters = Array.from(document.getElementById("negative-filter-toggles").children)
                     .filter((el) => !toggle_is_checked(el.id))
-                    .map((el) => el.dataset.field);
+                    .map((el) => NEGATIVE_FILTER_FIELDS[el.dataset.label]);
                 var enabledFormats = Array.from(document.getElementById("format-filter-toggles").children)
                     .filter((el) => toggle_is_checked(el.id))
                     .map((el) => el.dataset.label);
+
+                var globalFilters = Array.from(document.getElementById("global-filter-toggles").children)
+                    .filter((el) => (s) => !toggle_is_checked(el.id))
+                    .map((el) => (s) => {
+                        var filterDef = GLOBAL_FILTER_FUNCS[el.dataset.label];
+                        return filterDef["func"](s) === filterDef["init"];
+                    });
                 return showtimes.filter((showtime) => {
-                    return visibility[showtime["title"]] && !negativeFilters.some((field) => showtime[field]) && enabledFormats.includes(showtime["format"]);
+                    return visibility[showtime["title"]]
+                        && !negativeFilters.some((field) => showtime[field])
+                        && enabledFormats.includes(showtime["format"])
+                        && globalFilters.every((filterFunc) => filterFunc(showtime));
                 });
             }
 
             function updateFiltersByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, showtimes, visibility, updateDisplay) {
                 var parentEl = document.getElementById(parentId);
-                filterDefinitions.forEach(([label, field, value]) => {
-                    var filterFunc = (s) => s[field] === value;
+                filterDefinitions.forEach(([label, filterFunc, initialChecked]) => {
                     var id = `${label.toLowerCase().replace(" ", "-")}-toggle`;
                     var toggleEl = document.getElementById(id);
                     if (toggleEl === null) {
-                        toggleEl = createToggleElement(id, label);
-                        toggleEl.dataset.field = field;
-                        toggleEl.dataset.value = value;
+                        toggleEl = createToggleElement(id, label, initialChecked);
 
                         var openListingButton = createMovieListOpenListingButton(showtimesCalendar, listingCalendar, filterFunc);
                         openListingButton.style.marginRight = "10px";
@@ -273,7 +291,7 @@
 
                         parentEl.appendChild(toggleEl);
 
-                        createToggleSlider(showtimesCalendar, id, field, value);
+                        createToggleSlider(showtimesCalendar, id, filterFunc);
                     }
 
                     var filteredShowtimes = showtimes.filter(filterFunc);
@@ -314,12 +332,15 @@
                 var showtimes = showtimes === undefined ? showtimesCalendar.getEvents().map((e) => e.extendedProps["showtime"]) : showtimes;
                 var visibility = visibility === undefined ? reloadVisibility() : visibility;
 
+                var globalFilters = Object.entries(GLOBAL_FILTER_FUNCS).map(([label, {func, init}]) => [label, func, init]);
+                updateFiltersByType("global-filter-toggles", globalFilters, showtimesCalendar, listingCalendar, showtimes, visibility, updateDisplay);
+
                 var newFormats = Array.from(new Set(showtimes.map((s) => s["format"])));
                 var oldFormats = Array.from(document.getElementById("format-filter-toggles").children).map((el) => el.dataset.label);
-                var formatFilters = newFormats.concat(oldFormats).toSorted().map((fmt) => [fmt, "format", fmt]);
+                var formatFilters = newFormats.concat(oldFormats).toSorted().map((fmt) => [fmt, (s) => s["format"] === fmt]);
                 updateFiltersByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, showtimes, visibility, updateDisplay);
 
-                var negativeFilters = [["Open Captions", "is_open_caption", true], ["No A-List", "no_alist", true]];
+                var negativeFilters = Object.entries(NEGATIVE_FILTER_FIELDS).map(([label, field]) => [label, (s) => s[field]]);
                 updateFiltersByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes, visibility, updateDisplay);
             }
 
@@ -459,7 +480,7 @@
                     showtimesCalendar.addEventSource(eventSource)
                 });
 
-                var minStartHour = showtimes.map((s) => new Date(s["start_time"]).getHours()).toSorted()[0]
+                var minStartHour = showtimes.map((s) => dayjs(s["start_time"]).hour()).toSorted()[0]
                 if (minStartHour !== undefined) {
                     showtimesCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
                     scheduleCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
@@ -760,6 +781,8 @@
                     </div>
                     <hr />
                     <div id="filter-toggles">
+                        <div id="global-filter-toggles"></div>
+                        <hr />
                         <div id="negative-filter-toggles"></div>
                         <div id="format-filter-toggles"></div>
                     </div>
