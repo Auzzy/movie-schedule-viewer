@@ -192,14 +192,14 @@
 
             async function refreshTheatersLastUpdated() {
                 return get("theaters/last-updated").then(function(result) {
-                    var dropdownEl = document.getElementById("theater-options");
-                    Object.entries(result["updates"]).forEach(([theater, timestampStr]) => {
-                        var theaterEl = dropdownEl.querySelector(`[data-theater="${theater}"]`);
+                    var dropdownEl = document.getElementById("theater-dropdown");
+                    Array.from(dropdownEl.querySelectorAll("[data-theater]")).forEach((theaterEl) => {
+                        var theater = theaterEl.dataset.theater;
                         var timeEl = theaterEl.querySelector("[data-iso]");
+                        var timestampStr = result["updates"][theater];
                         timeEl.dataset.iso = timestampStr;
                         timeEl.innerHTML = dayjs(timestampStr).format("ddd, MMM D @ HH:mm");
                     });
-                    document.getElementById("theater-selected").innerHTML = Array.from(document.getElementById("theater-options").children)[0].innerHTML;
                 });
             }
 
@@ -633,8 +633,6 @@
                 button.innerHTML = selected.innerHTML;
                 button.dataset.theater = theater;
 
-                console.log
-
                 // Visual feedback
                 button.style.transform = 'scale(0.95)';
                 setTimeout(() => {
@@ -673,7 +671,10 @@
 
             document.addEventListener('DOMContentLoaded', function() {
                 THEATERS.forEach(createTheaterSelectorEl);
-                refreshTheatersLastUpdated();
+                var theaterSelectedEl = document.getElementById("theater-selected");
+                var defaultTheaterEl = document.getElementById("theater-options").firstChild;
+                theaterSelectedEl.innerHTML = defaultTheaterEl.innerHTML;
+                theaterSelectedEl.dataset.theater = defaultTheaterEl.dataset.theater;
 
                 var showtimesCalendarEl = document.getElementById('showtimes-calendar');
                 var showtimesCalendar = new FullCalendar.Calendar(showtimesCalendarEl, {
@@ -802,7 +803,7 @@
         <div style="display: flex;">
             <div style="flex: 10%">
                 <div style="height: 98vh; overflow-y: scroll; overflow-x: hidden; scrollbar-width: none; margin-right: 25px">
-                    <div class="dropdown" style="margin-top: 20px;">
+                    <div id="theater-dropdown" class="dropdown" style="margin-top: 20px;">
                         <button id="theater-selected" class="dropdown-toggle"></button>
                         <div id="theater-options" class="dropdown-menu"></div>
                     </div>
