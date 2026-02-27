@@ -20,7 +20,7 @@ from retriever import db
 from retriever.movie_times_lib import collect_schedule, db_showtime_updates, \
         send_error_email, send_deletion_report, send_watchlist_notification
 from retriever.schedule import Filter, FullSchedule
-from retriever.utils import offset_timezone
+from retriever.utils import get_days_to_scan, offset_timezone
 
 
 app = FastAPI()
@@ -208,7 +208,7 @@ def scan():
     try:
         print(f"Showtime scan starting at {datetime.now(timezone.utc)} UTC")
 
-        days_to_scan = int(os.environ.get("MOVIE_VIEWER_SCAN_DAYS", 30))
+        days_to_scan = get_days_to_scan()
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
         for theater in theaters_to_scan:
             tz = offset_timezone(db.get_theater(theater)["tzname"])
@@ -247,3 +247,12 @@ def send_watchlist_notifications():
 
     end_time = datetime.now(timezone.utc)
     db.log_task(db.Task.WATCHLIST_NOTIFICATIONS, start_time, end_time, success)
+
+@app.get("/gather-fandango-auditoriums")
+def run_gather_fandango_screens():
+    start_time = datetime.now(timezone.utc)
+
+    success = gather_fandango_screens()
+
+    end_time = datetime.now(timezone.utc)
+    db.log_task(db.Task.GATHER_FANDANGO_SCREENS, start_time, end_time, success)

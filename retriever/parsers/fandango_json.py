@@ -1,4 +1,5 @@
 import calendar
+import concurrent.futures
 import itertools
 import json
 import os
@@ -113,6 +114,7 @@ def _showtimes_iter(theater_code, date_range):
     current_date, end_date = date_range
     while current_date <= end_date:
         yield _retrieve_showtimes(theater_code, current_date)
+
         current_date += timedelta(days=1)
 
 
@@ -152,3 +154,35 @@ def get_tzname(theater_code):
     showtime_response = _retrieve_showtimes(theater_code, date.today() + timedelta(days=1))
     theater_info = showtime_response["viewModel"]["theater"]["details"]
     return _get_timezone(**theater_info["geo"])
+
+
+def _retrieve_seats(showtime_hash_code):
+    url = f"https://www.fandango.com/napi/seatMap/{showtime_hash_code}"
+    return _request_fandango(url).json()
+
+
+def gather_seat_info(hash_codes):
+    hash_to_auditorium = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_hash = {executor.submit(_retrieve_seats, hash_code): hash_code for hash_code in hash_codes}
+        for future in concurrent.futures.as_completed(future_to_hash):
+            hash_code = future_to_hash[future]
+            try:
+                seat_info = future.result()
+            except Exception as exc:
+                print(f'{hash_code} generated an exception: {exc}')
+
+            if isinstance(seat_info, list):
+                # Expired shouldn't happen. Communication error occurs when
+                # the movie is listed on Fandango, but not AMC, such as when
+                # it hasn't been announced yet.
+                if any(payload.get("id") in ("ExpiredPerformance", "PosCommunicationError") for payload in seat_info):
+                    continue
+                print(f"UNKNOWN: {seat_info}")
+            elif seat_info.get("error"):
+                # This will occur when "type" == "soldout".
+                continue
+            
+            hash_to_auditorium[hash_code] = f"Screen {seat_info['auditoriumId']}"
+            
+    return hash_to_auditorium

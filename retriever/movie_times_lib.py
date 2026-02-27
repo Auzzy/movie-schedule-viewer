@@ -14,7 +14,7 @@ from mailtrap import Address, Attachment, Mail, MailtrapClient
 from retriever import db
 from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
-from retriever.utils import date_ranges, date_range_to_str, group_dict_by, group_obj_by, offset_timezone
+from retriever.utils import date_ranges, date_range_to_str, get_days_to_scan, group_dict_by, group_obj_by, offset_timezone
 
 
 def _build_attachment(content, filename, *, encoding="utf-8"):
@@ -221,3 +221,25 @@ def add_theater_from_search(query, *, name=None, rank=None):
         print(f"[ERROR] Found mutiple theaters for \"{query}\". Please narrow the search term.")
         for result in search_result:
             print(f"- {result['fullname']}")
+
+
+def gather_fandango_screens():
+    try:
+        first_time = datetime.now().replace(microsecond=0)
+        last_time = first_time + timedelta(days=get_days_to_scan())
+
+        fandango_theaters = [theater["name"] for theater in db.get_theaters(clean=False) if theater["parser"] == "fandango_json"]
+        hash_codes = set()
+        for showtime in db.load_showtimes(first_time, last_time):
+            id_ = showtime["id"]
+            if id_ and showtime["theater"] in fandango_theaters:
+                hash_codes.add(id_)
+
+        hash_to_auditorium = fandango_json.gather_seat_info(hash_codes)
+        db.update_showtime_screens(hash_to_auditorium)
+        for hash_code, auditorium in hash_to_auditorium.items():
+            print(f"{hash_code}: {auditorium}")
+        return True
+    except Exception as exc:
+        send_error_email(exc)
+        return False

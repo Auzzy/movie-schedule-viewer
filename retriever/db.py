@@ -12,6 +12,7 @@ class Task(StrEnum):
     UPDATE_SHOWTIMES = "update-showtimes"
     DELETION_REPORT = "deletion-report"
     WATCHLIST_NOTIFICATIONS = "watchlist-notifications"
+    GATHER_FANDANGO_SCREENS = "gather-fandango-screens"
 
 
 def _connect():
@@ -68,16 +69,19 @@ def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=Tru
     db = _connect()
     cur = db.cursor()
 
-    where_title = ""
-    query_params = (theater, first_time, last_time)
+    where_clause = ""
+    query_params = (first_time, last_time)
+    if theater:
+        where_clause += f" AND s.theater = {_PH}"
+        query_params += (theater, )
     if title:
-        where_title = f" AND s.title = {_PH}"
+        where_clause += f" AND s.title = {_PH}"
         query_params += (title, )
 
     cur.execute(f"""
         SELECT *
         FROM showtimes s
-        WHERE s.theater = {_PH} AND s.start_time{_DATETIME} >= {_PH} AND s.start_time{_DATETIME} <= {_PH}{where_title}
+        WHERE s.start_time{_DATETIME} >= {_PH} AND s.start_time{_DATETIME} <= {_PH}{where_clause}
         ORDER BY s.title""",
         query_params
     )
@@ -192,6 +196,17 @@ def delete_showtimes(showtimes_dicts):
             VALUES ({', '.join([_PH] * len(insert_field_names))})""",
             tuple(insert_field_values) + (delete_time,)
         )
+
+    db.commit()
+    db.close()
+
+
+def update_showtime_screens(hash_to_auditorium):
+    db = _connect()
+    cur = db.cursor()
+    
+    for hash_code, auditorium in hash_to_auditorium.items():
+        cur.execute(f"UPDATE showtimes SET screen = {_PH} WHERE id = {_PH}", (hash_code, auditorium))
 
     db.commit()
     db.close()

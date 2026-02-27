@@ -148,6 +148,7 @@ class Showing:
         self.start = start
         self.end = end
         self.screen = screen
+        self.id = id_
 
     def filter(self, filter_params):
         return filter_params.apply_start_filter(self.start.timetz())
