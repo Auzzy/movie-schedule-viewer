@@ -1,4 +1,5 @@
 import calendar
+import os
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -13,6 +14,9 @@ def offset_timezone(tzname):
     """
     now = datetime.now(ZoneInfo(tzname))
     return timezone(now.tzinfo.utcoffset(now), tzname)
+
+def get_days_to_scan():
+    return int(os.environ.get("MOVIE_VIEWER_SCAN_DAYS", 30))
 
 def group_by(items, key):
     grouped_items = defaultdict(list)

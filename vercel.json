@@ -45,5 +45,11 @@
     }, {
         "path": "/send-watchlist-notifications",
         "schedule": "0 17 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums",
+        "schedule": "0 20 * * 2"
+    }, {
+        "path": "/gather-fandango-auditoriums",
+        "schedule": "0 4 * * 0-2,4-6"
     }]
 }

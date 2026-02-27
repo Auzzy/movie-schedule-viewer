@@ -63,8 +63,7 @@ def _load_schedules(page, extra_info_dict, tzname):
                 runtime_str = extra_info.get("runtime", "0")
                 movie = schedule.add_raw_movie(name, runtime_str)
 
-            raw_screen = extra_info.get("screen")
-            screen = f"Screen {raw_screen}" if raw_screen else None
+            screen = extra_info.get("screen") or None
 
             programs = _get_programs(movie_info)
 
