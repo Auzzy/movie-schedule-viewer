@@ -4,6 +4,7 @@
         <meta charset='utf-8' />
         <link rel="stylesheet" href="static/dropdown.css" />
         <link rel="stylesheet" href="static/slider.css" />
+        <link rel="stylesheet" href="static/base.css" />
         <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.18/dayjs.min.js" integrity="sha512-FwNWaxyfy2XlEINoSnZh1JQ5TRRtGow0D6XcmAWmYCRgvqOUTnzCxPc9uF35u5ZEpirk1uhlPVA19tflhvnW1g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
         <script>
@@ -220,12 +221,15 @@
                 return toggleEl.querySelector("label input").checked;
             }
 
-            function createToggleSlider(showtimesCalendar, id, filterFunc) {
+            function createToggleSlider(showtimesCalendar, id, filterFunc, disableUpdateFilters) {
+                var disableUpdateFilters = disableUpdateFilters === undefined ? false : disableUpdateFilters;
                 var toggleEl = document.getElementById(id)
                 toggleEl.addEventListener("change", function (e) {
                     if (toggle_is_checked(toggleEl)) {
                         addAllToCalendar(showtimesCalendar, filterFunc).then(() => {
-                            updateFilters(showtimesCalendar);
+                            if (!disableUpdateFilters) {
+                                updateFilters(showtimesCalendar);
+                            }
                         });
                     } else {
                         showtimesCalendar.getEvents().forEach((event) => {
@@ -233,7 +237,9 @@
                                 event.remove();
                             }
                         });
-                        updateFilters(showtimesCalendar);
+                        if (!disableUpdateFilters) {
+                            updateFilters(showtimesCalendar);
+                        }
                     }
                 });
                 return toggleEl;
@@ -258,8 +264,8 @@
 
                 return toggleEl;
             }
-
-            function applyShowtimeFilters(showtimes, visibility) {
+            
+            function applyRawShowtimeFilters(showtimes, visibility) {
                 var negativeFilters = Array.from(document.getElementById("negative-filter-toggles").children)
                     .filter((el) => !toggle_is_checked(el.id))
                     .map((el) => NEGATIVE_FILTER_FIELDS[el.dataset.label]);
@@ -277,8 +283,12 @@
                     return visibility[showtime["title"]]
                         && !negativeFilters.some((field) => showtime[field])
                         && enabledFormats.includes(showtime["format"])
-                        && globalFilters.every((filterFunc) => filterFunc(showtime));
+                         && globalFilters.every((filterFunc) => filterFunc(showtime));
                 });
+            }
+
+            function applyShowtimeFilters(showtimes, visibility) {
+                return toggle_is_checked("disable-filter-toggle") ? showtimes : applyRawShowtimeFilters(showtimes, visibility);
             }
             
             function updateTogglesByType(filterDefinitions, showtimes, visibility) {
@@ -286,7 +296,7 @@
                     var id = `${label.toLowerCase().replace(" ", "-")}-toggle`;
                     var toggleEl = document.getElementById(id);
 
-                    var switchEl = toggleEl.querySelector("label.switch");
+                    var switchEl = toggleEl.querySelector(".switch");
                     var filteredShowtimes = showtimes.filter(filterFunc);
                     if (filteredShowtimes.some((s) => visibility[s["title"]])) {
                         switchEl.classList.remove("disabled");
@@ -323,6 +333,38 @@
                 });
             }
 
+            function createDisableFiltersToggle(showtimesCalendar) {
+                var parentEl = document.getElementById("disable-filter-toggle");
+                var label = "Disable Filters";
+                var initialChecked = false;
+                var filterFunc = function(showtime) {
+                    var visibility = reloadVisibility();
+                    return applyRawShowtimeFilters([showtime], visibility).length === 0;
+                };
+
+                var id = `${label.toLowerCase().replace(" ", "-")}-toggle`;
+                var toggleEl = document.getElementById(id);
+                if (toggleEl === null) {
+                    toggleEl = createToggleElement(id, label, initialChecked);
+                    parentEl.appendChild(toggleEl);
+
+                    createToggleSlider(showtimesCalendar, id, filterFunc, true);
+
+                    toggleEl.addEventListener("change", function (e) {
+                        var switchEls = document.getElementById("filter-toggles").querySelectorAll(".switch");
+                        var movieEls = document.getElementById("movie-list").querySelectorAll("[data-title]");
+                        if (toggle_is_checked(toggleEl)) {
+                            switchEls.forEach((switchEl) => switchEl.classList.add("disabled"));
+                            movieEls.forEach((movieEl) => movieEl.classList.add("disabled"));
+                        } else {
+                            switchEls.forEach((switchEl) => switchEl.classList.remove("disabled"));
+                            movieEls.forEach((movieEl) => movieEl.classList.remove("disabled"));
+                            updateFilters(showtimesCalendar);
+                        }
+                    });
+                }
+            }
+
             function reloadDisplayInfo() {
                 var movieList = Array.from(document.getElementById("shown-movies").children).concat(
                     Array.from(document.getElementById("hidden-movies").children));
@@ -355,6 +397,7 @@
                 createTogglesByType("global-filter-toggles", globalFilters, showtimesCalendar, listingCalendar, showtimes);
                 createTogglesByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, showtimes);
                 createTogglesByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, showtimes);
+                createDisableFiltersToggle(showtimesCalendar);
             }
 
             function updateFilters(showtimesCalendar) {
@@ -808,6 +851,7 @@
                         <div id="theater-options" class="dropdown-menu"></div>
                     </div>
                     <hr />
+                    <div id="disable-filter-toggle"></div>
                     <div id="filter-toggles">
                         <div id="global-filter-toggles"></div>
                         <hr />
