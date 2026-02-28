@@ -670,7 +670,7 @@
             }
 
             function theaterClickHandler(event, showtimesCalendar, listingCalendar, scheduleCalendar) {
-                var selected = event.target.parentElement;
+                var selected = event.target.closest(".dropdown-item");
                 var theater = selected.dataset.theater;
                 const button = document.getElementById("theater-selected");
                 button.innerHTML = selected.innerHTML;
