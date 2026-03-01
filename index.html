@@ -228,7 +228,7 @@
                     if (toggle_is_checked(toggleEl)) {
                         addAllToCalendar(showtimesCalendar, filterFunc).then(() => {
                             if (!disableUpdateFilters) {
-                                updateFilters(showtimesCalendar);
+                                // updateFilters(showtimesCalendar);
                             }
                         });
                     } else {
@@ -238,7 +238,7 @@
                             }
                         });
                         if (!disableUpdateFilters) {
-                            updateFilters(showtimesCalendar);
+                            // updateFilters(showtimesCalendar);
                         }
                     }
                 });
@@ -359,7 +359,7 @@
                         } else {
                             switchEls.forEach((switchEl) => switchEl.classList.remove("disabled"));
                             movieEls.forEach((movieEl) => movieEl.classList.remove("disabled"));
-                            updateFilters(showtimesCalendar);
+                            // updateFilters(showtimesCalendar);
                         }
                     });
                 }
@@ -474,7 +474,7 @@
 
                     showMovie(title);
                     addAllToCalendar(showtimesCalendar, (showtime) => showtime["title"] === title).then(function() {
-                        updateFilters(showtimesCalendar);
+                        // updateFilters(showtimesCalendar);
                     });
                 } else if (entry.dataset.visible === "true") {
                     entry.style.background = "white";
@@ -488,7 +488,7 @@
 
                     insertSortedChild("hidden-movies", entry);
                     hideMovie(title);
-                    updateFilters(showtimesCalendar);
+                    // updateFilters(showtimesCalendar);
                 }
             }
 
@@ -556,7 +556,7 @@
 
                 showtimesCalendar.render();
 
-                updateFilters(showtimesCalendar);
+                // updateFilters(showtimesCalendar);
             }
 
             function getListingConfig(showtimesCalendar) {
