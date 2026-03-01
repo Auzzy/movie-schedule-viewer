@@ -711,6 +711,32 @@
                 theaterOptionsEl.appendChild(dropdownItemEl);
             }
 
+            function showTheatersOnHover() {
+                var dropdownEl = document.getElementById("theater-dropdown");
+                var dropdownMenuEl = document.getElementById("theater-options");
+                dropdownEl.addEventListener("mouseenter", function(e) {
+                    dropdownMenuEl.classList.add("dropdown-menu-hover");
+                });
+                dropdownEl.addEventListener("mouseleave", function(e) {
+                    dropdownMenuEl.classList.remove("dropdown-menu-hover");
+                });
+
+                var dropdownItems = dropdownMenuEl.querySelectorAll(".dropdown-item");
+                dropdownItems.forEach((dropdownItem) => {
+                    dropdownItem.addEventListener("mouseenter", function(e) {
+                        dropdownItem.classList.add("dropdown-item-hover");
+                    });
+                });
+                dropdownItems.forEach((dropdownItem) => {
+                    dropdownItem.addEventListener("mouseleave", function(e) {
+                        dropdownItem.classList.remove("dropdown-item-hover");
+                    });
+                    dropdownItem.addEventListener("click", function(e) {
+                        dropdownMenuEl.classList.remove("dropdown-menu-hover");
+                    });
+                });
+            }
+
 
             document.addEventListener('DOMContentLoaded', function() {
                 THEATERS.forEach(createTheaterSelectorEl);
@@ -835,6 +861,8 @@
                         theaterClickHandler(e, showtimesCalendar, listingCalendar, scheduleCalendar);
                     });
                 });
+
+                showTheatersOnHover();
             });
         </script>
     </head>
