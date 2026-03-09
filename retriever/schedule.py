@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 
 from retriever.theaters import timezone
 from retriever.utils import offset_timezone
-
+from tzlocal import get_localzone_name
 
 RUNTIME_RE = re.compile(r"(?:(?P<hr>\d) hr)? ?(?:(?P<min>\d\d?) min)?")
 LANGUAGE_RE = re.compile("([a-z]+) spoken with ([a-z]+) subtitles")
@@ -15,7 +15,7 @@ MONTHS = [day.lower() for day in calendar.month_name]
 MONTH_ABBRS = [abbr.lower() for abbr in calendar.month_abbr]
 PIVOT_DAY = WEEKDAYS.index("thursday")
 
-SYSTEM_TZNAME = datetime.now().astimezone().tzname()
+SYSTEM_TZNAME = get_localzone_name()
 
 
 class ParseError(ValueError):

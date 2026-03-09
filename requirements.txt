@@ -3,3 +3,4 @@ requests
 ical
 mailtrap
 psycopg2-binary
+tzlocal
