@@ -413,8 +413,8 @@
             function openListingClickHandler(event, showtimesCalendar, listingCalendar, showtimeFilter) {
                 event.stopPropagation();
 
-                var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeStart);
-                var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeEnd);
+                var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentStart);
+                var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentEnd);
                 var theater = selectedTheater();
                 var title = event.currentTarget.parentNode.dataset.title;
 
@@ -595,10 +595,10 @@
                     scheduleCalendar.setOption('slotMinTime', `${minStartHour}:00:00`);
                 }
 
-                scheduleCalendar.gotoDate(showtimesCalendar.view.activeStart);
-                        
-                var startStr = scheduleCalendar.formatIso(showtimesCalendar.view.activeStart);
-                var endStr = scheduleCalendar.formatIso(showtimesCalendar.view.activeEnd);
+                scheduleCalendar.gotoDate(showtimesCalendar.view.currentStart);
+
+                var startStr = scheduleCalendar.formatIso(showtimesCalendar.view.currentStart);
+                var endStr = scheduleCalendar.formatIso(showtimesCalendar.view.currentEnd);
 
                 getSchedule(startStr, endStr).then((result) => {
                     clearCalendar(scheduleCalendar);
@@ -615,8 +615,8 @@
                     listingCalendar.setOption("titleFormat", listingConfig["title"]);
                     listingCalendar.setOption("listDayFormat", listingConfig["day"]);
 
-                    var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeStart);
-                    var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeEnd);
+                    var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentStart);
+                    var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentEnd);
                     listingCalendar.changeView(listingConfig["view"], {"start": startStr, "end": endStr});
                     listingCalendar.getEventSources().forEach((eventSource, i) => eventSource.remove());
                     listingCalendar.render();
