@@ -953,6 +953,8 @@
                     eventClick: (clickInfo) => {
                         if (clickInfo.jsEvent.ctrlKey) {
                             addToSchedule(clickInfo.event, scheduleCalendar);
+                        } else {
+                            openShowtimePopup(clickInfo.event);
                         }
                     }
                 });
