@@ -8,8 +8,9 @@ THEATERS = {
     "Apple Hooksett": {"code": "aauoc", "slug": "apple-cinemas-hooksett-imax-aauoc", "tz": "US/Eastern"},
     "Apple Merrimack": {"code": "aatgl", "slug": "apple-cinemas-merrimack-aatgl", "tz": "US/Eastern"},
     "Showcase Randolph": {"code": "aaeea", "slug": "showcase-cinemas-de-lux-randolph-aaeea", "tz": "US/Eastern"},
+    "O'Neil Londonderry": {"code": "aakgu", "slug": "oneil-cinemas-londonderry-aakgu", "tz": "US/Eastern"},
+    "Coolidge Corner": {"tz": "US/Eastern"},
     "O'Neil Epping": {"code": "aawvb", "slug": "oneil-cinemas-at-brickyard-square-aawvb", "tz": "US/Eastern"},
-    "O'Neil Londonderry": {"code": "aakgu", "slug": "oneil-cinemas-londonderry-aakgu", "tz": "US/Eastern"}
 }
 
 THEATER_NAMES = tuple(THEATERS.keys())

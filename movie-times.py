@@ -8,11 +8,10 @@ from ical.event import Event
 from mailtrap import Address, Attachment, Mail, MailtrapClient
 
 from retriever import db
-from retriever.fandango_json import load_schedules_by_day
-from retriever.schedule import Filter, FullSchedule, ParseError, \
-        date_range_str_parser as _raw_date_parser, time_str_parser as _raw_time_parser
 from retriever.movie_times_lib import collect_schedule, db_showtime_updates, \
         email_theater_schedules, send_deletion_report
+from retriever.schedule import Filter, FullSchedule, ParseError, \
+        date_range_str_parser as _raw_date_parser, time_str_parser as _raw_time_parser
 from retriever.theaters import THEATER_NAMES
 
 

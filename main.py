@@ -14,7 +14,6 @@ from ical.event import Event
 from pydantic import BaseModel
 
 from retriever import db, theaters
-from retriever.fandango_json import load_schedules_by_day
 from retriever.movie_times_lib import collect_schedule, db_showtime_updates, send_error_email, send_deletion_report
 from retriever.schedule import Filter, FullSchedule
 

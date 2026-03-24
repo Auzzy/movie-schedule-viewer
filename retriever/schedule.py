@@ -6,7 +6,8 @@ from retriever.theaters import timezone
 from retriever.utils import offset_timezone
 from tzlocal import get_localzone_name
 
-RUNTIME_RE = re.compile(r"(?:(?P<hr>\d) hr)? ?(?:(?P<min>\d\d?) min)?")
+# Handles anything from "2hr 41min" to "2 hrs 41 mins" and "41 min"
+RUNTIME_RE = re.compile(r"(?:(?P<hr>\d) ?hrs?)? ?(?:(?P<min>\d\d?) ?mins?)?")
 LANGUAGE_RE = re.compile("([a-z]+) spoken with ([a-z]+) subtitles")
 
 WEEKDAYS = [day.lower() for day in calendar.day_name]
@@ -135,14 +136,18 @@ class Showing:
             return "Apple Cinemas Experience"
         elif "screenx" in attributes:
             return "ScreenX"
+        elif "cinema in 70mm" in attributes:
+            return "70mm"
         elif "laser at amc" in attributes or "standard format" in attributes:
+            return "Standard"
+        elif "new release" in attributes or "coolidge education" in attributes or "calling the shots" in attributes or "big screen classics" in attributes or "kids' shows" in attributes or "science on screen®" in attributes or "after midnite" in attributes or "panorama" in attributes or "special events" in attributes or "cult classics" in attributes:
             return "Standard"
         return raw_attributes[0]
 
     @staticmethod
     def _parse_showtime(showtime_str, theater):
         tz = timezone(theater)
-        showtime_str = showtime_str.replace('p', 'pm').replace('a', 'am')
+        showtime_str = showtime_str.replace('p', 'pm').replace('a', 'am').replace('mm', 'm')
         return datetime.strptime(showtime_str, "%I:%M%p").replace(tzinfo=tz).timetz()
 
     @staticmethod

@@ -4,3 +4,4 @@ ical
 mailtrap
 psycopg2-binary
 tzlocal
+bs4

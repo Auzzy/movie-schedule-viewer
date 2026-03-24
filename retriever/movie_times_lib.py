@@ -11,7 +11,7 @@ from ical.event import Event
 from mailtrap import Address, Attachment, Mail, MailtrapClient
 
 from retriever import db
-from retriever.fandango_json import load_schedules_by_day
+from retriever.parsers import coolidge, fandango_json
 from retriever.schedule import Filter, FullSchedule, ParseError
 from retriever.theaters import timezone
 
@@ -75,13 +75,18 @@ def email_theater_schedules(theaters_to_schedule, dates, sender, sender_name, re
 
 
 def collect_schedule(theater, filepath, date_range, filter_params, quiet):
-    schedules_by_day = load_schedules_by_day(theater, filepath, date_range, filter_params, quiet)
+    if theater == "Coolidge Corner":
+        raw_schedules = coolidge.load_schedules_by_day(date_range, quiet)
+    else:
+        raw_schedules = fandango_json.load_schedules_by_day(theater, filepath, date_range, quiet)
 
-    if not schedules_by_day:
+    filtered_schedules = [schedule.filter(filter_params) for schedule in raw_schedules]
+
+    if not filtered_schedules:
         print("[WARN] Could not find any data for the requested date(s).")
         return
 
-    return FullSchedule.create(schedules_by_day)
+    return FullSchedule.create(filtered_schedules)
 
 
 def db_showtime_updates(theater, date_range, detected_showtimes):
