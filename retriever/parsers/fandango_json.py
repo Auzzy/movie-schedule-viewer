@@ -40,8 +40,8 @@ def _load_schedule(showtimes_json, theater):
 
 
 def _retrieve_json(theater, showdate):
-    url = f"https://www.fandango.com/napi/theaterMovieShowtimes/{THEATERS[theater]['code']}?startDate={showdate.date().isoformat()}"
-    headers = {"referer": f"https://www.fandango.com/{THEATERS[theater]['slug']}/theater-page?format=all&date={showdate.date().isoformat()}"}
+    url = f"https://www.fandango.com/napi/theaterMovieShowtimes/{THEATERS[theater]['code']}?startDate={showdate.isoformat()}"
+    headers = {"referer": f"https://www.fandango.com/{THEATERS[theater]['slug']}/theater-page?format=all&date={showdate.isoformat()}"}
     return requests.get(url, headers=headers).json()
 
 

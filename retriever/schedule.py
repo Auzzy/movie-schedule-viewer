@@ -138,6 +138,8 @@ class Showing:
             return "ScreenX"
         elif "cinema in 70mm" in attributes:
             return "70mm"
+        elif "2d digital" in attributes:
+            return "Standard"
         elif "laser at amc" in attributes or "standard format" in attributes:
             return "Standard"
         elif "new release" in attributes or "coolidge education" in attributes or "calling the shots" in attributes or "big screen classics" in attributes or "kids' shows" in attributes or "science on screen®" in attributes or "after midnite" in attributes or "panorama" in attributes or "special events" in attributes or "cult classics" in attributes:
@@ -145,10 +147,13 @@ class Showing:
         return raw_attributes[0]
 
     @staticmethod
-    def _parse_showtime(showtime_str, theater):
+    def _parse_showtime(raw_showtime, theater):
         tz = timezone(theater)
-        showtime_str = showtime_str.replace('p', 'pm').replace('a', 'am').replace('mm', 'm')
-        return datetime.strptime(showtime_str, "%I:%M%p").replace(tzinfo=tz).timetz()
+        if isinstance(raw_showtime, datetime):
+            showtime = raw_showtime
+        else:
+            showtime = datetime.strptime(raw_showtime.replace('p', 'pm').replace('a', 'am').replace('mm', 'm'), "%I:%M%p")
+        return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod
     def create(attributes, raw_start_time, runtime_min, day, theater):
