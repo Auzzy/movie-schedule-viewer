@@ -11,6 +11,7 @@ THEATERS = {
     "O'Neil Londonderry": {"code": "aakgu", "slug": "oneil-cinemas-londonderry-aakgu", "tz": "US/Eastern"},
     "Coolidge Corner": {"tz": "US/Eastern"},
     "Brattle Theater": {"tz": "US/Eastern"},
+    "Red River": {"tz": "US/Eastern"},
     "Somerville Theater": {"tz": "US/Eastern"},
     "O'Neil Epping": {"code": "aawvb", "slug": "oneil-cinemas-at-brickyard-square-aawvb", "tz": "US/Eastern"},
 }

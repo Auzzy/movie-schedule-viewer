@@ -11,7 +11,7 @@ from ical.event import Event
 from mailtrap import Address, Attachment, Mail, MailtrapClient
 
 from retriever import db
-from retriever.parsers import brattle, coolidge, fandango_json, somerville_theater
+from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
 from retriever.theaters import timezone
 
@@ -80,6 +80,8 @@ def collect_schedule(theater, filepath, date_range, filter_params, quiet):
         raw_schedules = coolidge.load_schedules_by_day(date_range, quiet)
     elif theater == "Brattle Theater":
         raw_schedules = brattle.load_schedules_by_day(date_range, quiet)
+    elif theater == "Red River":
+        raw_schedules = red_river.load_schedules_by_day(date_range, quiet)
     elif theater == "Somerville Theater":
         raw_schedules = somerville_theater.load_schedules_by_day(date_range, quiet)
     else:
