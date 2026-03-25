@@ -7,7 +7,7 @@ from retriever.utils import offset_timezone
 from tzlocal import get_localzone_name
 
 # Handles anything from "2hr 41min" to "2 hrs 41 mins" and "41 min"
-RUNTIME_RE = re.compile(r"(?:(?P<hr>\d) ?hrs?)? ?(?:(?P<min>\d\d?) ?mins?)?")
+RUNTIME_RE = re.compile(r"(?:(?P<hr>\d) ?hrs?)? ?(?:(?P<min>\d\d?\d?) ?mins?)?")
 LANGUAGE_RE = re.compile("([a-z]+) spoken with ([a-z]+) subtitles")
 
 WEEKDAYS = [day.lower() for day in calendar.day_name]
@@ -152,7 +152,9 @@ class Showing:
         if isinstance(raw_showtime, datetime):
             showtime = raw_showtime
         else:
-            showtime = datetime.strptime(raw_showtime.replace('p', 'pm').replace('a', 'am').replace('mm', 'm'), "%I:%M%p")
+            raw_showtime = raw_showtime.replace('p', 'pm').replace('a', 'am').replace('mm', 'm')
+            raw_showtime = raw_showtime.replace(" ", "")
+            showtime = datetime.strptime(raw_showtime, "%I:%M%p")
         return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod

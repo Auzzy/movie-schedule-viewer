@@ -10,6 +10,7 @@ THEATERS = {
     "Showcase Randolph": {"code": "aaeea", "slug": "showcase-cinemas-de-lux-randolph-aaeea", "tz": "US/Eastern"},
     "O'Neil Londonderry": {"code": "aakgu", "slug": "oneil-cinemas-londonderry-aakgu", "tz": "US/Eastern"},
     "Coolidge Corner": {"tz": "US/Eastern"},
+    "Brattle Theater": {"tz": "US/Eastern"},
     "Somerville Theater": {"tz": "US/Eastern"},
     "O'Neil Epping": {"code": "aawvb", "slug": "oneil-cinemas-at-brickyard-square-aawvb", "tz": "US/Eastern"},
 }
