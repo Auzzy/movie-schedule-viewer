@@ -36,21 +36,6 @@
                 {text: "black", bg: "thistle"},
             ];
 
-            const THEATERS = [
-                "AMC Methuen",
-                "AMC Boston Common",
-                "Coolidge Corner",
-                "Brattle Theater",
-                "Red River",
-                "Somerville Theater",
-                "AMC Tyngsboro",
-                "AMC Causeway",
-                "Apple Hooksett",
-                "Apple Merrimack",
-                "Showcase Randolph",
-                "O'Neil Londonderry",
-            ];
-
             var NEGATIVE_FILTER_FIELDS = {
                 "Is Open Caption": "is_open_caption",
                 "No A-List": "no_alist"
@@ -194,6 +179,10 @@
             function resetMovieList() {
                 document.getElementById("shown-movies").innerHTML = "";
                 document.getElementById("hidden-movies").innerHTML = "";
+            }
+
+            function getTheaterNames() {
+                return get("theaters/");
             }
 
             async function refreshTheatersLastUpdated() {
@@ -817,6 +806,8 @@
 
                 var theaterOptionsEl = document.getElementById("theater-options");
                 theaterOptionsEl.appendChild(dropdownItemEl);
+
+                return dropdownItemEl;
             }
 
             function showTheatersOnHover() {
@@ -847,12 +838,6 @@
 
 
             document.addEventListener('DOMContentLoaded', function() {
-                THEATERS.forEach(createTheaterSelectorEl);
-                var theaterSelectedEl = document.getElementById("theater-selected");
-                var defaultTheaterEl = document.getElementById("theater-options").firstChild;
-                theaterSelectedEl.innerHTML = defaultTheaterEl.innerHTML;
-                theaterSelectedEl.dataset.theater = defaultTheaterEl.dataset.theater;
-
                 var showtimesCalendarEl = document.getElementById('showtimes-calendar');
                 var showtimesCalendar = new FullCalendar.Calendar(showtimesCalendarEl, {
                     initialView: 'dayGridMonth',
@@ -966,13 +951,20 @@
                     displayListingCalendar(event, showtimesCalendar, listingCalendar);
                 });
 
-                document.querySelectorAll("#theater-options .dropdown-item").forEach(item => {
-                    item.addEventListener("click", (e) => {
-                        theaterClickHandler(e, showtimesCalendar, listingCalendar, scheduleCalendar);
+                getTheaterNames().then(function(theatersJson) {
+                    theatersJson["names"].forEach((theater) => {
+                        var dropdownItemEl = createTheaterSelectorEl(theater);
+                        dropdownItemEl.addEventListener("click", (e) => {
+                            theaterClickHandler(e, showtimesCalendar, listingCalendar, scheduleCalendar);
+                        });
                     });
-                });
 
-                showTheatersOnHover();
+                    var theaterSelectedEl = document.getElementById("theater-selected");
+                    var defaultTheaterEl = document.getElementById("theater-options").firstChild;
+                    theaterSelectedEl.innerHTML = defaultTheaterEl.innerHTML;
+                    theaterSelectedEl.dataset.theater = defaultTheaterEl.dataset.theater;
+                    showTheatersOnHover();
+                });
             });
         </script>
     </head>

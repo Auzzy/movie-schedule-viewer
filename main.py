@@ -121,6 +121,10 @@ def remove_showtime_from_schedule(showtime: dict[str, Any]):
     db.remove_from_schedule(showtime)
     return {}
 
+@app.get("/theaters")
+def request_theaters():
+    return {"names": theaters.THEATER_NAMES}
+
 @app.get("/theaters/last-updated")
 def request_theaters_last_updated():
     theaters_last_update = db.theaters_last_update()
