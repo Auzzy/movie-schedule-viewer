@@ -12,6 +12,9 @@ THEATERS = {
     "Brattle Theater": {"tz": "US/Eastern", "parser": "brattle"},
     "Red River": {"tz": "US/Eastern", "parser": "red_river"},
     "Somerville Theater": {"tz": "US/Eastern", "parser": "somerville_theater"},
+}
+
+CLOSED_THEATERS = {
     "O'Neil Epping": {"code": "aawvb", "slug": "oneil-cinemas-at-brickyard-square-aawvb", "tz": "US/Eastern"},
     "Showcase Randolph": {"code": "aaeea", "slug": "showcase-cinemas-de-lux-randolph-aaeea", "tz": "US/Eastern"},
 }
