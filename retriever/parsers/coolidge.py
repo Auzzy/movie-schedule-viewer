@@ -39,7 +39,7 @@ def _showtimes_text_iter(date_range):
         yield (BeautifulSoup(page_text, 'html.parser'), current_date)
         current_date += timedelta(days=1)
 
-def load_schedules_by_day(date_range, quiet=False):
+def load_schedules_by_day(theater, date_range, quiet=False):
     schedules_by_day = []
     if not quiet:
         print(".", end="", flush=True)
@@ -50,7 +50,3 @@ def load_schedules_by_day(date_range, quiet=False):
             print(".", end="", flush=True)
 
     return schedules_by_day
-
-if __name__ == "__main__":
-    schedules_by_day = load_schedules_by_day((date(2026, 3, 22), date(2026, 3, 27)))
-    print(FullSchedule.create(schedules_by_day).output(False, False))

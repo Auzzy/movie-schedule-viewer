@@ -75,13 +75,9 @@ def _load_runtimes_by_movies():
     return runtime_dict
 
 
-def load_schedules_by_day(date_range, quiet=False):
+def load_schedules_by_day(theater, date_range, quiet=False):
     schedules_by_day = []
     showtimes_html = BeautifulSoup(_retrieve_page(SHOWTIMES_URL), 'html.parser')
     runtime_dict = _load_runtimes_by_movies()
     schedules_by_day = _load_schedules(showtimes_html, runtime_dict)
     return [s for s in schedules_by_day if date_range[0] <= s.day <= date_range[1]]
-
-if __name__ == "__main__":
-    schedules_by_day = load_schedules_by_day((date(2026, 3, 25), date(2026, 4, 30)))
-    print(FullSchedule.create(schedules_by_day).output(False, False))

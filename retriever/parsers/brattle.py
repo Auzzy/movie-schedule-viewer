@@ -54,12 +54,8 @@ def _load_schedules(page):
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
-def load_schedules_by_day(date_range, quiet=False):
+def load_schedules_by_day(theater, date_range, quiet=False):
     schedules_by_day = []
     showtimes_html = BeautifulSoup(_retrieve_page(), 'html.parser')
     schedules_by_day = _load_schedules(showtimes_html)
     return [s for s in schedules_by_day if date_range[0] <= s.day <= date_range[1]]
-
-if __name__ == "__main__":
-    schedules_by_day = load_schedules_by_day((date(2026, 4, 19), date(2026, 4, 21)))
-    print(FullSchedule.create(schedules_by_day).output(False, False))

@@ -1,4 +1,5 @@
 import base64
+import importlib
 import json
 import os
 import traceback
@@ -13,7 +14,7 @@ from mailtrap import Address, Attachment, Mail, MailtrapClient
 from retriever import db
 from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
-from retriever.theaters import timezone
+from retriever.theaters import THEATERS, timezone
 
 
 def _build_attachment(content, filename, *, encoding="utf-8"):
@@ -76,16 +77,10 @@ def email_theater_schedules(theaters_to_schedule, dates, sender, sender_name, re
 
 def collect_schedule(theater, filepath, date_range, filter_params, quiet):
     date_range = [d.date() for d in date_range]
-    if theater == "Coolidge Corner":
-        raw_schedules = coolidge.load_schedules_by_day(date_range, quiet)
-    elif theater == "Brattle Theater":
-        raw_schedules = brattle.load_schedules_by_day(date_range, quiet)
-    elif theater == "Red River":
-        raw_schedules = red_river.load_schedules_by_day(date_range, quiet)
-    elif theater == "Somerville Theater":
-        raw_schedules = somerville_theater.load_schedules_by_day(date_range, quiet)
-    else:
-        raw_schedules = fandango_json.load_schedules_by_day(theater, filepath, date_range, quiet)
+
+    parser_name = THEATERS[theater].get("parser", "fandango_json")
+    parser = importlib.import_module(f"retriever.parsers.{parser_name}")
+    raw_schedules = parser.load_schedules_by_day(theater, date_range, quiet)
 
     filtered_schedules = [schedule.filter(filter_params) for schedule in raw_schedules]
 

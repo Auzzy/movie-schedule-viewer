@@ -7,13 +7,13 @@ THEATERS = {
     "AMC Causeway": {"code": "aayqs", "slug": "amc-causeway-13-aayqs", "tz": "US/Eastern"},
     "Apple Hooksett": {"code": "aauoc", "slug": "apple-cinemas-hooksett-imax-aauoc", "tz": "US/Eastern"},
     "Apple Merrimack": {"code": "aatgl", "slug": "apple-cinemas-merrimack-aatgl", "tz": "US/Eastern"},
-    "Showcase Randolph": {"code": "aaeea", "slug": "showcase-cinemas-de-lux-randolph-aaeea", "tz": "US/Eastern"},
     "O'Neil Londonderry": {"code": "aakgu", "slug": "oneil-cinemas-londonderry-aakgu", "tz": "US/Eastern"},
-    "Coolidge Corner": {"tz": "US/Eastern"},
-    "Brattle Theater": {"tz": "US/Eastern"},
-    "Red River": {"tz": "US/Eastern"},
-    "Somerville Theater": {"tz": "US/Eastern"},
+    "Coolidge Corner": {"tz": "US/Eastern", "parser": "coolidge"},
+    "Brattle Theater": {"tz": "US/Eastern", "parser": "brattle"},
+    "Red River": {"tz": "US/Eastern", "parser": "red_river"},
+    "Somerville Theater": {"tz": "US/Eastern", "parser": "somerville_theater"},
     "O'Neil Epping": {"code": "aawvb", "slug": "oneil-cinemas-at-brickyard-square-aawvb", "tz": "US/Eastern"},
+    "Showcase Randolph": {"code": "aaeea", "slug": "showcase-cinemas-de-lux-randolph-aaeea", "tz": "US/Eastern"},
 }
 
 THEATER_NAMES = tuple(THEATERS.keys())
