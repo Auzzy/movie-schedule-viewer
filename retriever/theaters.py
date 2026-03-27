@@ -22,4 +22,5 @@ CLOSED_THEATERS = {
 THEATER_NAMES = tuple(THEATERS.keys())
 
 def timezone(theater_name):
-    return offset_timezone(THEATERS[theater_name]["tz"])
+    info = THEATERS.get(theater_name) or CLOSED_THEATERS.get(theater_name)
+    return offset_timezone(info["tz"])
