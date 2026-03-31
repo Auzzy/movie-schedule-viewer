@@ -23,7 +23,8 @@ def _load_schedule(page, day, open_captions_dict):
     for movie_info in page.find_all(class_="film-card"):
         details = movie_info.find(class_="film-card__detail")
         name = details.find(class_="film-card__link").get_text(strip=True)
-        raw_runtime_str = details.find(class_="film-card__runtime").get_text(strip=True)
+        runtime_el = details.find(class_="film-card__runtime")
+        raw_runtime_str = runtime_el.get_text(strip=True) if runtime_el else "0mins"
         runtime_str = ' '.join([s.strip() for s in raw_runtime_str.splitlines()])
 
         movie = schedule.add_raw_movie(name, runtime_str)
