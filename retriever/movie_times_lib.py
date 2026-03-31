@@ -155,5 +155,5 @@ def send_deletion_report(day):
 
 
 def send_error_email(exc):
-    error_str = traceback.format_exception(exc)
+    error_str = "".join(traceback.format_exception(exc))
     _send_email("Schedule Updater encountered an error", error_str)
