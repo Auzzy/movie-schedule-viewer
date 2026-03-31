@@ -6,19 +6,40 @@ from bs4 import BeautifulSoup
 from retriever.schedule import DaySchedule, FullSchedule
 
 
-SHOWTIMES_URL_FMT = "https://coolidge.org/views/ajax?date={date}&view_name=now_playing&view_display_id=page_1&ajax_page_state%5Blibraries%5D=eJxtkFFywyAMRC9kzJEyMqhYtUAMUuL49sWdZGw3_QH0xOyuFICxRGg-vB6jzZhxCCJMMaGHEKRFknJCiRidUVjQqKSj8dZwJinxSeSLOLsALR4osUzATkOjavrJbeOLdpZpdy3woAR2yfMfqxAWSKiuqywHVoQW5o98OstqlPv39winXr_wqG9F1sqw9XA-gmHd19AGfNru5GO7V-DxVQ5JpBvdoABvfWHq_4JBNzXMfgLF4UG4qv89R_iG5wVkiXfGH6_kp3A'"
+SIGNATURE_PROGRAMS_URL = "https://coolidge.org/"
+SHOWTIMES_URL_FMT = "https://coolidge.org/showtimes?date={date}"
 OPEN_CAPTIONS_URL = "https://coolidge.org/films-events/open-captions"
 
+def _retrieve_page(url):
+    return BeautifulSoup(requests.get(url).text, 'html.parser')
+
 def _retrieve_showtimes_page(showdate):
-    response = requests.get(SHOWTIMES_URL_FMT.format(date=showdate))
-    for section in response.json():
-        if section["command"] == "insert" and section["method"] == "replaceWith":
-            return BeautifulSoup(section["data"], 'html.parser')
+    return _retrieve_page(SHOWTIMES_URL_FMT.format(date=showdate))
 
 def _retrieve_open_captions_page():
-    return BeautifulSoup(requests.get(OPEN_CAPTIONS_URL).text, 'html.parser')
+    return _retrieve_page(OPEN_CAPTIONS_URL)
 
-def _load_schedule(page, day, open_captions_dict):
+def _retrieve_signature_programs_page():
+    return _retrieve_page(SIGNATURE_PROGRAMS_URL)
+
+# Makes Coolidge's tagging work better for me by recatagorizing some.
+def _program_adjustments(attributes, programs):
+    def _move(src, dest, srcval, destval=None):
+        if srcval in src:
+            src.remove(srcval)
+            dest.append(destval or srcval)
+
+    _move(programs, attributes, "Cinema in 70mm", "70mm")
+    _move(attributes, programs, "Digital Restoration")
+    _move(attributes, programs, "Spotlight on Women")
+    _move(attributes, programs, "Speaker")
+    _move(attributes, programs, "Special Screenings")
+
+    if not attributes:
+        attributes.append("Standard")
+
+
+def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
     schedule = DaySchedule(day)
     for movie_info in page.find_all(class_="film-card"):
         details = movie_info.find(class_="film-card__detail")
@@ -29,22 +50,35 @@ def _load_schedule(page, day, open_captions_dict):
 
         movie = schedule.add_raw_movie(name, runtime_str)
 
-        base_attributes = [a.get_text(strip=True) for a in movie_info.find_all(class_="film-program__title")]
+        attrib_chip_parent = movie_info.find(class_="view-film-event-type-link")
+        base_attributes = [a.get_text(strip=True) for a in attrib_chip_parent.find_all(class_="film-program__title")] if attrib_chip_parent else []
+
+        program_chip_parent = movie_info.find(class_="view-program-taxonomy-link")
+        program_paths = [a["href"].replace("/programs", "") for a in program_chip_parent.find_all(class_="film-program__link")] if program_chip_parent else []
+        programs = [signature_programs_dict[path] for path in program_paths]
+
+        _program_adjustments(base_attributes, programs)
+
         for showtime_el in movie_info.find_all(class_="showtime-ticket__time"):
             raw_showtime = showtime_el.get_text(strip=True)
             attributes = base_attributes + (["Open Caption"] if raw_showtime in open_captions_dict.get(name, {}).get(day, []) else [])
 
-            movie.add_raw_showings(attributes, [raw_showtime], day, "Coolidge Corner")
+            movie.add_raw_showings(attributes, [raw_showtime], day, "Coolidge Corner", programs)
 
     return schedule
 
-# Should also get the open caption showtimes from https://coolidge.org/films-events/open-captions
 def _showtimes_text_iter(date_range):
     current_date, end_date = date_range
+    
     while current_date <= end_date:
         page = _retrieve_showtimes_page(current_date)
         yield (page, current_date)
         current_date += timedelta(days=1)
+
+def _load_signature_programs():
+    page = _retrieve_signature_programs_page()
+    signature_programs_menu_el = page.find(lambda el: "menu-item" in el.get("class", []) and el.find(string="Signature Programs"))
+    return {item.a["href"].replace("/programs", ""): item.get_text(strip=True) for item in signature_programs_menu_el.find_all(class_="menu-item")}
 
 def _load_open_captions_showtimes():
     open_captions = {}
@@ -68,9 +102,10 @@ def load_schedules_by_day(theater, date_range, quiet=False):
     if not quiet:
         print(".", end="", flush=True)
 
+    signature_programs_dict = _load_signature_programs()
     open_captions_dict = _load_open_captions_showtimes()
     for showtimes_html, day in _showtimes_text_iter(date_range):
-        schedules_by_day.append(_load_schedule(showtimes_html, day, open_captions_dict))
+        schedules_by_day.append(_load_schedule(showtimes_html, day, open_captions_dict, signature_programs_dict))
 
         if not quiet:
             print(".", end="", flush=True)

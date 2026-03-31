@@ -34,6 +34,7 @@ def _load_schedules(page):
         if not showtimes_section:
             continue
 
+        # TODO: Now that we support programs, capture and set those.
         for screening_info in showtimes_section.find_all(lambda tag: tag.has_attr("data-date")):
             start_time_el = screening_info.find(class_="showtime")
             for child in start_time_el.children:

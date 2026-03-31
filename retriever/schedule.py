@@ -136,13 +136,15 @@ class Showing:
             return "Apple Cinemas Experience"
         elif "screenx" in attributes:
             return "ScreenX"
-        elif "cinema in 70mm" in attributes:
+        elif "70mm" in attributes:
             return "70mm"
+        elif "35mm" in attributes:
+            return "35mm"
         elif "2d digital" in attributes:
             return "Standard"
         elif "laser at amc" in attributes or "standard format" in attributes:
             return "Standard"
-        elif "new release" in attributes or "coolidge education" in attributes or "calling the shots" in attributes or "big screen classics" in attributes or "kids' shows" in attributes or "science on screen®" in attributes or "after midnite" in attributes or "panorama" in attributes or "special events" in attributes or "cult classics" in attributes:
+        elif "new release" in attributes:
             return "Standard"
         return raw_attributes[0]
 
@@ -158,7 +160,7 @@ class Showing:
         return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod
-    def create(attributes, raw_start_time, runtime_min, day, theater):
+    def create(attributes, raw_start_time, runtime_min, day, theater, programs=[]):
         fmt = Showing._attributes_to_fmt(attributes)
         attributes = [a.lower() for a in attributes]
         languages = [attr.rsplit(maxsplit=1)[0] for attr in attributes if attr.lower().endswith("language")]
@@ -168,13 +170,14 @@ class Showing:
         start_time = Showing._parse_showtime(raw_start_time, theater)
         start = datetime.combine(day, start_time)
         end = start + timedelta(minutes=runtime_min)
-        return Showing(fmt, languages, is_open_caption, no_alist, start, end)
+        return Showing(fmt, languages, is_open_caption, no_alist, programs, start, end)
 
-    def __init__(self, fmt, languages, is_open_caption, no_alist, start, end):
+    def __init__(self, fmt, languages, is_open_caption, no_alist, programs, start, end):
         self.fmt = fmt
         self.languages = languages
         self.is_open_caption = is_open_caption
         self.no_alist = no_alist
+        self.programs = programs
         self.start = start
         self.end = end
 
@@ -213,9 +216,9 @@ class Movie:
         self.runtime_min = runtime_min
         self.showings = []
 
-    def add_raw_showings(self, attributes, raw_times, day, theater):
+    def add_raw_showings(self, attributes, raw_times, day, theater, programs=[]):
         for raw_time in raw_times:
-            self.showings.append(Showing.create(attributes, raw_time, self.runtime_min, day, theater))
+            self.showings.append(Showing.create(attributes, raw_time, self.runtime_min, day, theater, programs))
 
     @property
     def first(self):

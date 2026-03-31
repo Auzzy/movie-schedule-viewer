@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, timezone
 import sqlite3
@@ -19,6 +20,14 @@ def _connect():
         db = sqlite3.connect("showtimes.db")
         db.row_factory = sqlite3.Row
         return db
+
+def _cast_value(value):
+    if isinstance(value, bool):
+        return int(value)
+    elif isinstance(value, list):
+        return json.dumps(value)
+    else:
+        return value
 
 def load_showtimes(theater, first_time, last_time, title=None, *, clean=True):
     db = _connect()
@@ -43,6 +52,7 @@ def load_showtimes(theater, first_time, last_time, title=None, *, clean=True):
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
         row_dict["no_alist"] = row["no_alist"] == 1
+        row_dict["programs"] = json.loads(row["programs"] or "[]")
         if clean:
             del row_dict["create_time"]
         rows.append(row_dict)
@@ -56,7 +66,7 @@ def store_showtimes(theater, schedule, *, clean=True):
     inserted = []
     for movie in schedule.movies:
         for showing in movie.showings:
-            field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "start_time", "end_time", "create_time")
+            field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "programs", "start_time", "end_time", "create_time")
             field_names_str = ", ".join(field_names)
             field_values = (
                 theater,
@@ -64,6 +74,7 @@ def store_showtimes(theater, schedule, *, clean=True):
                 showing.fmt,
                 int(showing.is_open_caption),
                 int(showing.no_alist),
+                json.dumps(sorted(showing.programs)),
                 showing.start.isoformat(),
                 showing.end.isoformat(),
                 create_time
@@ -79,6 +90,7 @@ def store_showtimes(theater, schedule, *, clean=True):
             inserted_dict = dict(zip(field_names, field_values))
             inserted_dict["is_open_caption"] = inserted_dict["is_open_caption"] == 1
             inserted_dict["no_alist"] = inserted_dict["no_alist"] == 1
+            inserted_dict["programs"] = json.loads(inserted_dict["programs"] or "[]")
             if clean:
                 del inserted_dict["create_time"]
             inserted.append(inserted_dict)
@@ -94,10 +106,10 @@ def delete_showtimes(showtimes_dicts):
 
     delete_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     for showtime in showtimes_dicts:
-        delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "start_time")
+        delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "programs", "start_time")
         delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
         delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
-        delete_field_values = tuple([int(value) if isinstance(value, bool) else value for value in delete_field_raw_values])
+        delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
         cur.execute(f"DELETE FROM showtimes WHERE {delete_field_where_str}", delete_field_values)
 
         new_insert_field_names = ("end_time", "delete_time")
@@ -194,7 +206,7 @@ def add_to_schedule(showtime):
     cur = db.cursor()
 
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "start_time", "end_time", "create_time")
+    field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "programs", "start_time", "end_time", "create_time")
     field_names_str = ", ".join(field_names)
     field_values = (
         showtime["theater"],
@@ -202,6 +214,7 @@ def add_to_schedule(showtime):
         showtime["format"],
         int(showtime["is_open_caption"]),
         int(showtime["no_alist"]),
+        json.dumps(sorted(showtime["programs"])),
         showtime["start_time"],
         showtime["end_time"],
         create_time
@@ -224,7 +237,7 @@ def remove_from_schedule(showtime):
     delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "start_time")
     delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
     delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
-    delete_field_values = tuple([int(value) if isinstance(value, bool) else value for value in delete_field_raw_values])
+    delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
     cur.execute(f"DELETE FROM schedule WHERE {delete_field_where_str}", delete_field_values)
     
     db.commit()
@@ -270,6 +283,7 @@ def _init_db():
         format TEXT,
         is_open_caption INT NOT NULL,
         no_alist INT NOT NULL,
+        programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         create_time TEXT NOT NULL,
@@ -285,6 +299,7 @@ def _init_db():
         format TEXT,
         is_open_caption INT NOT NULL,
         no_alist INT NOT NULL,
+        programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         delete_time TEXT NOT NULL
@@ -301,6 +316,7 @@ def _init_db():
         format TEXT,
         is_open_caption INT NOT NULL,
         no_alist INT NOT NULL,
+        programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         create_time TEXT NOT NULL,

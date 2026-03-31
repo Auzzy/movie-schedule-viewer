@@ -3,3 +3,10 @@
   opacity: 0.4;
 }
 
+#format-filter-toggles div:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+#program-filter-toggles div:nth-child(even) {
+  background-color: #f2f2f2;
+}
