@@ -34,6 +34,9 @@ def _load_schedules(page):
         if not showtimes_section:
             continue
 
+        raw_programs = {el.get_text(strip=True) for el in movie_info.find(class_="pill-container").find_all(class_="pill")}
+        programs = [prog for prog in raw_programs if prog not in ("35mm Screenings", "Closed Captions")]
+        
         # TODO: Now that we support programs, capture and set those.
         for screening_info in showtimes_section.find_all(lambda tag: tag.has_attr("data-date")):
             start_time_el = screening_info.find(class_="showtime")
@@ -51,7 +54,7 @@ def _load_schedules(page):
                 movie = schedule.add_raw_movie(name, runtime_str)
             
             attributes = _get_attributes(movie_info)
-            movie.add_raw_showings(attributes, [raw_start_time], showdate, THEATER_NAME)
+            movie.add_raw_showings(attributes, [raw_start_time], showdate, THEATER_NAME, programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
