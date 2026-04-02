@@ -25,14 +25,21 @@ def _load_schedules(schedule_json):
             runtime = int((datetime.fromisoformat(showing["FeatureEndTime"]) - start_dt).seconds / 60)
             movie = schedule.add_raw_movie(name, runtime)
 
-        fmt = showing["FilmFormat"]
-        if fmt == "2D Film":
-            attrs = showing["Attributes"] or ["Film"]
-            attributes = ["35mm"] if attrs == ["0000000013"] else attrs
+        raw_formats = showing.get("Attributes")
+        if raw_formats:
+            match raw_formats:
+                case ["0000000013"]: formats = ["35mm"]
+                case ["0000000015"]: formats = ["4k"]
+                case _: formats = raw_formats
         else:
-            attributes = [fmt]
+            formats = ["Standard"]
 
-        movie.add_raw_showings(attributes, [start_dt], showdate, THEATER_NAME)
+        programs = [showing["PriceCardName"]]
+        if programs[0] in ("Repertory Evening", "Matinee-SMV", "Evening-SMV", "$7 Tuesdays"):
+            # You'd think "Reperatory Evening" would mean just that. But it's sometimes applied to new releases.
+            programs = []
+
+        movie.add_raw_showings(formats, [start_dt], showdate, THEATER_NAME, programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
