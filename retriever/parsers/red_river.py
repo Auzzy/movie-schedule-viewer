@@ -15,13 +15,17 @@ RUNTIME_RE = re.compile("\((?P<runtime>\d{1,3}) min.*\) \d{4}")
 def _retrieve_page(url):
     return requests.get(url, headers=REQUEST_HEADERS).text
 
-def _get_attributes(movie_info):
+def _get_attributes_and_programs(movie_info):
     attributes = ["Standard"]
-    attribute_el = movie_info.find(class_="screen-attribute")
-    if attribute_el and attribute_el.get_text(strip=True) == "OCAP":
-        return attributes + ["Open Caption"]
-    else:
-        return attributes
+    programs = []
+    for attr_el in movie_info.find_all(class_="screen-attribute"):
+        match attr_el.get_text(strip=True):
+            case "CP": programs.append("Community Program")
+            case "REP": programs.append("Repertory Screening")
+            case "OCAP": attributes.append("Open Caption")
+            case other: programs.append(other)
+    
+    return attributes, programs
 
 def _clean_name(name):
     if name.endswith("Open Captions"):
@@ -51,8 +55,8 @@ def _load_schedules(page, runtime_dict):
                 runtime_str = runtime_dict.get(name, "0")
                 movie = schedule.add_raw_movie(name, runtime_str)
             
-            attributes = _get_attributes(movie_info)
-            movie.add_raw_showings(attributes, [raw_start_time], showdate, THEATER_NAME)
+            attributes, programs = _get_attributes_and_programs(movie_info)
+            movie.add_raw_showings(attributes, [raw_start_time], showdate, THEATER_NAME, programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
