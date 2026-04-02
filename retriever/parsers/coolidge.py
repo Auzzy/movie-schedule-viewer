@@ -53,9 +53,13 @@ def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
         attrib_chip_parent = movie_info.find(class_="view-film-event-type-link")
         base_attributes = [a.get_text(strip=True) for a in attrib_chip_parent.find_all(class_="film-program__title")] if attrib_chip_parent else []
 
+        programs = []
         program_chip_parent = movie_info.find(class_="view-program-taxonomy-link")
-        program_paths = [a["href"].replace("/programs", "") for a in program_chip_parent.find_all(class_="film-program__link")] if program_chip_parent else []
-        programs = [signature_programs_dict[path] for path in program_paths]
+        if program_chip_parent:
+            for anchor in program_chip_parent.find_all(class_="film-program__link"):
+                path = anchor.get("href", "").replace("/programs", "")
+                chip_label = anchor.find(class_="film-program__title").get_text(strip=True)
+                programs.append(signature_programs_dict.get(path, chip_label))
 
         _program_adjustments(base_attributes, programs)
 
