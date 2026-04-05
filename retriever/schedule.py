@@ -156,7 +156,10 @@ class Showing:
         else:
             raw_showtime = raw_showtime.replace('p', 'pm').replace('a', 'am').replace('mm', 'm')
             raw_showtime = raw_showtime.replace(" ", "")
-            showtime = datetime.strptime(raw_showtime, "%I:%M%p")
+            try:
+                showtime = datetime.strptime(raw_showtime, "%I:%M%p")
+            except Exception:
+                showtime = datetime.strptime(raw_showtime, "%I%p")
         return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod
