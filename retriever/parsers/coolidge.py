@@ -48,10 +48,8 @@ def _apply_projection_specifics(name, raw_showtime, day, attributes):
     projection_specifics = projection_specifics_cache.get(name)
     if projection_specifics:
         fmt = projection_specifics["format"]
-        dates_to_times = projection_specifics["showtimes"]
-        if dates_to_times is None:
-            attributes.append(fmt + "*")
-        elif showtime in dates_to_times.get(day, []):
+        dates_to_times = projection_specifics.get("showtimes")
+        if dates_to_times is None or showtime in dates_to_times.get(day, []):
             attributes.append(fmt)
         else:
             attributes.append("Standard")
@@ -64,35 +62,38 @@ def _apply_projection_specifics(name, raw_showtime, day, attributes):
 # at 4:30pm, 7pm, & 9:30pm Fri-Sun and 4:30pm, 7:15pm, & 9:30pm on Thurs. Screening digitally in
 # all other houses and on Mon-Wed."
 def _load_projection_specifics(movie_detail_path, fmt):
+    day_to_times = None
     try:
         detail_page = _retrieve_movie_detail_page(movie_detail_path)
-        notes_block = detail_page.find(class_="cite").get_text(strip=True)
-        line = notes_block.split(".", 1)[0]
+        notes_block_el = detail_page.find(class_="cite")
+        if notes_block_el:
+            line = notes_block_el.get_text(strip=True).split(".", 1)[0]
 
-        date_to_weekday = {}
-        for date_el in detail_page.find_all(class_="datepicker__date"):
-            showdate = datetime.strptime(date_el.get_text(strip=True), "%m/%d").date().replace(year=date.today().year)
-            weekday_abbr = day_abbr[showdate.weekday()]
-            date_to_weekday[showdate] = weekday_abbr
+            date_to_weekday = {}
+            for date_el in detail_page.find_all(class_="datepicker__date"):
+                showdate = datetime.strptime(date_el.get_text(strip=True), "%m/%d").date().replace(year=date.today().year)
+                weekday_abbr = day_abbr[showdate.weekday()]
+                date_to_weekday[showdate] = weekday_abbr
 
-        day_to_times = {}
-        for range_match in RANGE_RE.findall(line):
-            time_matches = TIME_RE.findall(range_match)
-            day_matches = DAYS_RE.findall(range_match)
-            end_date = _dict_find_by_value(date_to_weekday, day_matches[-1])
-            if not end_date:
-                # The showtimes in question have passed.
-                continue
+            day_to_times = {}
+            for range_match in RANGE_RE.findall(line):
+                time_matches = TIME_RE.findall(range_match)
+                day_matches = DAYS_RE.findall(range_match)
+                end_date = _dict_find_by_value(date_to_weekday, day_matches[-1])
+                if not end_date:
+                    # The showtimes in question have passed.
+                    continue
 
-            day = end_date
-            while True:
-                day_to_times[day] = [Showing._parse_showtime(time_str, THEATER_NAME) for time_str in time_matches]
-                if day.weekday() == list(day_abbr).index(day_matches[0]):
-                    break
+                day = end_date
+                while True:
+                    day_to_times[day] = [Showing._parse_showtime(time_str, THEATER_NAME) for time_str in time_matches]
+                    if day.weekday() == list(day_abbr).index(day_matches[0]):
+                        break
 
-                day -= timedelta(days=1)
+                    day -= timedelta(days=1)
     except Exception as exc:
         day_to_times = None
+        fmt = f"{fmt}*"
 
     return {
         "format": fmt,
@@ -118,6 +119,7 @@ def _program_adjustments(attributes, programs):
     _move(attributes, programs, "Spotlight on Women")
     _move(attributes, programs, "Speaker")
     _move(attributes, programs, "Special Screenings")
+    _move(attributes, programs, "Double Feature")
     _move(attributes, programs, "New Release")
 
     if "Digital Restoration" in programs and "New Release" in programs:
