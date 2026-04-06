@@ -125,10 +125,6 @@ def _program_adjustments(attributes, programs):
     if "Digital Restoration" in programs and "New Release" in programs:
         programs.remove("New Release")
 
-    if not attributes:
-        attributes.append("Standard")
-
-
 def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
     schedule = DaySchedule(day)
     for movie_info in page.find_all(class_="film-card"):
@@ -153,6 +149,8 @@ def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
 
         _program_adjustments(base_attributes, programs)
         _update_projection_specifics_cache(base_attributes, movie_info, name)
+        if not base_attributes:
+            base_attributes.append("Standard")
 
         for showtime_el in movie_info.find_all(class_="showtime-ticket__time"):
             raw_showtime = showtime_el.get_text(strip=True)

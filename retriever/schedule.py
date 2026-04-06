@@ -166,7 +166,7 @@ class Showing:
     def create(attributes, raw_start_time, runtime_min, day, theater, programs=[]):
         fmt = Showing._attributes_to_fmt(attributes)
         attributes = [a.lower() for a in attributes]
-        languages = [attr.rsplit(maxsplit=1)[0] for attr in attributes if attr.lower().endswith("language")]
+        languages = [attr.rsplit(maxsplit=1)[0] for attr in attributes if attr.endswith("language")]
         is_open_caption = "open caption" in attributes
         no_alist = "alternative content" in attributes or "no passes" in attributes
 
