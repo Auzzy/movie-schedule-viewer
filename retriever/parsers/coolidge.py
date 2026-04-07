@@ -17,9 +17,9 @@ OPEN_CAPTIONS_URL = f"{COOLIDGE_URL}films-events/open-captions"
 projection_specifics_cache = {}
 
 WEEKDAY_REGEX = "Mon|Tue|Wed|Thu|Fri|Sat|Sun"
-RANGE_RE = re.compile(f"(?:\d\d?(?::\d\d)?(?:am|pm)).*?(?:{WEEKDAY_REGEX})(?:-(?:{WEEKDAY_REGEX}))?")
-TIME_RE = re.compile("(?:\d\d?(?::\d\d)?(?:am|pm))")
-DAYS_RE = re.compile(f"({WEEKDAY_REGEX})")
+RANGE_RE = re.compile(rf"(?:\d\d?(?::\d\d)?(?:am|pm)).*?(?:{WEEKDAY_REGEX})(?:-(?:{WEEKDAY_REGEX}))?")
+TIME_RE = re.compile(r"(?:\d\d?(?::\d\d)?(?:am|pm))")
+DAYS_RE = re.compile(rf"({WEEKDAY_REGEX})")
 
 
 def _retrieve_page(url):
