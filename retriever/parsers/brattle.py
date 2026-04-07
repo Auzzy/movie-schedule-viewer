@@ -29,6 +29,8 @@ def _load_schedules(page):
     schedules = {}
     for movie_info in page.find_all(class_="show-details"):
         name = movie_info.find(class_="show-title").get_text(strip=True)
+        if name.lower() == "closed for private event":
+            continue
 
         showtimes_section = movie_info.find(class_="showtimes")
         if not showtimes_section:
