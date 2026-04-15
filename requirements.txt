@@ -5,3 +5,9 @@ mailtrap
 psycopg2-binary
 tzlocal
 bs4
+jinja2
+
+# Something changed in the 1.0 release of starlette regarding how to pass
+# environment options to Jinja2Templates. I'll figure that out more formally
+# when I have more time.
+starlette==0.52.1

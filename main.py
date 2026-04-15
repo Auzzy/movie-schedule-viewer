@@ -1,13 +1,15 @@
 import itertools
+import os
 import sys
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
-from fastapi import Body, FastAPI, Response
+from fastapi import Body, FastAPI, Cookie, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from ical.calendar import Calendar
 from ical.calendar_stream import IcsCalendarStream
 from ical.event import Event
@@ -34,6 +36,17 @@ app.add_middleware(
     expose_headers=["Content-Type"]
 )
 
+templates = Jinja2Templates(directory=".", trim_blocks=True, lstrip_blocks=True)
+
+
+def _check_write_permission(client_id):
+    if not client_id:
+        raise ValueError("No client ID included in request. Please request one and add it to your browser's local storage.")
+
+    clients = os.environ.get("MOVIE_VIEWER_CLIENTS", "").split(',')
+    if client_id not in clients:
+        raise RuntimeError("Unauthorized client.")
+
 
 def _showtimes_to_ics(showtimes):
     calendar = Calendar()
@@ -56,9 +69,9 @@ def _showtimes_to_ics(showtimes):
     return IcsCalendarStream.calendar_to_ics(calendar)
 
 
-def _load_visibility(theater, first_time, last_time):
+def _load_visibility(theater, first_time, last_time, *, client_id):
     showtimes = _load_showtimes(theater, first_time, last_time)
-    visibility = db.load_visibility()
+    visibility = db.load_visibility(client_id=client_id) if client_id else {}
 
     titles = {s["title"] for s in showtimes}
     return {title: visibility.get(title, True) for title in titles}
@@ -70,9 +83,19 @@ def _load_showtimes(theater, first_time, last_time, title=None):
 
 
 @app.get("/", response_class=HTMLResponse)
-def read_root():
-    with open("index.html") as homepage_html:
-        return homepage_html.read()
+def read_root(request: Request, client_id: Annotated[str | None, Cookie()] = None):
+    if client_id is None:
+        allow_editing = None
+    else:
+        try:
+            _check_write_permission(client_id)
+            allow_editing = True
+        except (ValueError, RuntimeError):
+            allow_editing = False
+
+    context = {"allow_editing": allow_editing}
+    return templates.TemplateResponse(request=request, name="index.html", context=context)
+
 
 @app.get("/showtimes/{theater}/{first_time}/{last_time}")
 def request_showtimes(theater: str, first_time: datetime, last_time: datetime):
@@ -80,45 +103,59 @@ def request_showtimes(theater: str, first_time: datetime, last_time: datetime):
     return {"showtimes": showtimes}
 
 @app.get("/showtimes/{theater}/{first_time}/{last_time}/visibility")
-def request_visibility(theater: str, first_time: datetime, last_time: datetime):
-    visibility = _load_visibility(theater, first_time, last_time)
+def request_visibility(theater: str, first_time: datetime, last_time: datetime, client_id: Annotated[str | None, Cookie()] = None):
+    visibility = _load_visibility(theater, first_time, last_time, client_id=client_id)
     return {"visibility": visibility}
 
 @app.put("/movies/{title}/hide")
-def request_hide_movie(title):
-    db.hide_movie(title)
+def request_hide_movie(title, client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    db.hide_movie(title, client_id=client_id)
     return {}
 
 @app.put("/movies/{title}/show")
-def request_show_movie(title):
-    db.show_movie(title)
+def request_show_movie(title, client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    db.show_movie(title, client_id=client_id)
     return {}
 
 @app.post("/export-ics")
-def request_export_ics(payload: dict[str, Any]):
+def request_export_ics(payload: dict[str, Any], client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
     ics_stream = _showtimes_to_ics(payload["showtimes"])
     return Response(content=ics_stream, media_type="text/calendar")
 
 @app.get("/schedule/{first_time}/{last_time}")
-def load_schedule(first_time: datetime, last_time: datetime):
-    schedule = db.load_schedule(first_time, last_time)
+def load_schedule(first_time: datetime, last_time: datetime, client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    schedule = db.load_schedule(first_time, last_time, client_id=client_id)
     return {
         "schedule": schedule
     }
 
 @app.post("/schedule/{first_time}/{last_time}/clear")
-def clear_schedule(first_time: datetime, last_time: datetime):
-    schedule = db.clear_schedule(first_time, last_time)
+def clear_schedule(first_time: datetime, last_time: datetime, client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    schedule = db.clear_schedule(first_time, last_time, client_id=client_id)
     return {}
 
 @app.post("/schedule/new-showtime")
-def add_showtime_to_schedule(showtime: dict[str, Any]):
-    db.add_to_schedule(showtime)
+def add_showtime_to_schedule(showtime: dict[str, Any], client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    db.add_to_schedule(showtime, client_id=client_id)
     return {}
 
 @app.post("/schedule/remove-showtime")
-def remove_showtime_from_schedule(showtime: dict[str, Any]):
-    db.remove_from_schedule(showtime)
+def remove_showtime_from_schedule(showtime: dict[str, Any], client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    db.remove_from_schedule(showtime, client_id=client_id)
     return {}
 
 @app.get("/theaters")

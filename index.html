@@ -49,6 +49,23 @@
                 }
             };
 
+            {% if allow_editing is none %}
+            function getCookie(cname) {
+                let name = cname + "=";
+                let decodedCookie = decodeURIComponent(document.cookie);
+                let ca = decodedCookie.split(';');
+                for(let i = 0; i <ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) == ' ') {
+                        c = c.substring(1);
+                    }
+                    if (c.indexOf(name) == 0) {
+                        return c.substring(name.length, c.length);
+                    }
+                }
+                return null;
+            }
+            {% endif %}
 
             function timeStr(date) {
                 var hoursRaw = date.getHours() % 12;
@@ -539,7 +556,7 @@
 
                     insertSortedChild("shown-movies", entry.parentElement);
 
-                    showMovie(title);
+                    {% if allow_editing %}showMovie(title);{% endif %}
                     addAllToCalendar(showtimesCalendar, (showtime) => showtime["title"] === title).then(function() {
                         updateEnabledFilters();
                     });
@@ -555,7 +572,7 @@
                     }
 
                     insertSortedChild("hidden-movies", entry.parentElement);
-                    hideMovie(title);
+                    {% if allow_editing %}hideMovie(title);{% endif %}
                     updateEnabledFilters();
                 }
             }
@@ -684,9 +701,11 @@
                 var slotMaxTime = maxEndHour === -Infinity ? "24:00:00" : `${maxEndHour}:00:00`;
 
                 showtimesCalendar.setOption('slotMinTime', slotMinTime);
-                scheduleCalendar.setOption('slotMinTime', slotMinTime);
                 showtimesCalendar.setOption('slotMaxTime', slotMaxTime);
+                {% if allow_editing %}
+                scheduleCalendar.setOption('slotMinTime', slotMinTime);
                 scheduleCalendar.setOption('slotMaxTime', slotMaxTime);
+                {% endif %}
 
                 showtimesCalendar.render();
             }
@@ -877,6 +896,18 @@
 
 
             document.addEventListener('DOMContentLoaded', function() {
+                {% if allow_editing is none %}
+                if (getCookie("client_id") === null) {
+                    var clientId = localStorage.getItem("movie-viewer-client-id");
+                    if (clientId === null) {
+                        document.cookie = `client_id=`;
+                    } else {
+                        document.cookie = `client_id=${clientId}`;
+                    }
+                    window.location.reload();
+                }
+                {% endif %}
+
                 var showtimesCalendarEl = document.getElementById('showtimes-calendar');
                 var showtimesCalendar = new FullCalendar.Calendar(showtimesCalendarEl, {
                     initialView: 'dayGridMonth',
@@ -901,19 +932,26 @@
                             .then(([showtimesResult, visibilityResult]) => {
                                 clearCalendar(showtimesCalendar);
                                 loadShowtimesCallback(showtimesResult["showtimes"], visibilityResult["visibility"], showtimesCalendar, listingCalendar, scheduleCalendar);
+                                {% if allow_editing %}
                                 renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar);
+                                {% endif %}
                             });
                     },
                     eventClick: (clickInfo) => {
+                        {% if allow_editing %}
                         if (clickInfo.jsEvent.ctrlKey) {
                             addToSchedule(clickInfo.event, scheduleCalendar);
                         } else {
                             openShowtimePopup(clickInfo.event);
                         }
+                        {% else %}
+                        openShowtimePopup(clickInfo.event);
+                        {% endif %}
                     }
                 });
                 showtimesCalendar.render();
 
+                {% if allow_editing %}
                 var scheduleCalendarEl = document.getElementById('schedule-calendar');
                 var scheduleCalendar = new FullCalendar.Calendar(scheduleCalendarEl, {
                     initialView: 'listMonth',
@@ -964,6 +1002,9 @@
                     }
                 });
                 scheduleCalendar.render();
+                {% else %}
+                var scheduleCalendar = undefined;
+                {% endif %}
 
                 var listingCalendarEl = document.getElementById("listing-calendar");
                 var listingCalendar = new FullCalendar.Calendar(listingCalendarEl, {
@@ -978,11 +1019,15 @@
                     listDayFormat: {weekday: 'long', month: 'long', day: 'numeric'},
                     listDaySideFormat: false,
                     eventClick: (clickInfo) => {
+                        {% if allow_editing %}
                         if (clickInfo.jsEvent.ctrlKey) {
                             addToSchedule(clickInfo.event, scheduleCalendar);
                         } else {
                             openShowtimePopup(clickInfo.event);
                         }
+                        {% else %}
+                        openShowtimePopup(clickInfo.event);
+                        {% endif %}
                     }
                 });
 
@@ -1044,11 +1089,13 @@
                             <div id='showtimes-calendar'></div>
                         </div>
                     </div>
+                    {% if allow_editing %}
                     <div style="flex: 17%; padding-right: 10px;">
                         <div style="height: 98vh; overflow-y: scroll; scrollbar-width: none">
                             <div id='schedule-calendar'></div>
                         </div>
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
