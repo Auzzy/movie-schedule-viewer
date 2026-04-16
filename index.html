@@ -287,6 +287,7 @@
 
                 return Object.fromEntries(movieList.map((el) => {
                     var formats = el.dataset.formats.split(",");
+                    var languages = el.dataset.languages.split(",");
                     var programs = el.dataset.programs.split(",");
                     var display = {visible: el.dataset.visible === "true", background_color: el.dataset.bgColor, text_color: el.dataset.textColor};
                     var details = {
@@ -295,8 +296,9 @@
                         first: el.dataset.first,
                         last: el.dataset.last,
                         formats,
+                        languages,
                         programs,
-                        ...Object.fromEntries(formats.concat(programs).map((attr) => [strToDatasetId(attr), el.dataset[strToDatasetId(attr)]]))
+                        ...Object.fromEntries(formats.concat(languages).concat(programs).map((attr) => [strToDatasetId(attr), el.dataset[strToDatasetId(attr)]]))
                     }
 
                     return [el.dataset.title, {display, details}];
@@ -328,6 +330,16 @@
                     };
                 });
 
+                var newLanguages = Array.from(new Set(Object.values(moviesInfo).map((info) => info["details"]["languages"]).flat()));
+                var oldLanguages = Array.from(document.getElementById("language-filter-toggles").children).map((el) => el.dataset.label);
+                var languageFilters = newLanguages.concat(oldLanguages).toSorted().filter((l) => l !== "UNKNOWN").map((language) => {
+                    return {
+                        label: language,
+                        filterShowtimeF: (s) => s["language"] === language,
+                        filterMovieF: (mi) => mi["details"][strToDatasetId(language)] === "true"
+                    };
+                });
+
                 var newPrograms = Array.from(new Set(Object.values(moviesInfo).map((info) => info["details"]["programs"]).flat()));
                 var oldPrograms = Array.from(document.getElementById("program-filter-toggles").children).map((el) => el.dataset.label);
                 var programFilters = newPrograms.concat(oldPrograms).toSorted().map((program) => {
@@ -355,7 +367,7 @@
                     };
                 });
 
-                return {globalFilters, formatFilters, programFilters, negativeFilters};
+                return {globalFilters, formatFilters, languageFilters, programFilters, negativeFilters};
             }
 
             function applyRawShowtimeFilters(showtimes, visibility) {
@@ -365,6 +377,10 @@
                 var enabledFormats = Array.from(document.getElementById("format-filter-toggles").children)
                     .filter((el) => toggleIsChecked(el.id))
                     .map((el) => el.dataset.label);
+                var enabledLanguages = Array.from(document.getElementById("language-filter-toggles").children)
+                    .filter((el) => toggleIsChecked(el.id))
+                    .map((el) => el.dataset.label)
+                    .concat("UNKNOWN");
                 var enabledPrograms = Array.from(document.getElementById("program-filter-toggles").children)
                     .filter((el) => toggleIsChecked(el.id))
                     .map((el) => el.dataset.label);
@@ -379,7 +395,9 @@
                     return visibility[showtime["title"]]
                         && !negativeFilters.some((field) => showtime[field])
                         && enabledFormats.includes(showtime["format"])
+                        && enabledLanguages.includes(showtime["language"])
                         && globalFilters.every((filterShowtimesFunc) => filterShowtimesFunc(showtime));
+                        // && showtime["programs"].exists((p) => enabledPrograms.includes(p))
                 });
             }
 
@@ -389,9 +407,9 @@
 
             function adjustFilterChecked(showtimesCalendar) {
                 var moviesInfo = reloadMoviesInfo();
-                var {formatFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
+                var {formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
 
-                var filters = formatFilters.concat(programFilters).concat(negativeFilters);
+                var filters = formatFilters.concat(languageFilters).concat(programFilters).concat(negativeFilters);
                 filters.forEach(({label, filterShowtimeF}) => {
                     var matchingShowtimes = showtimesCalendar.getEvents().filter((e) => filterShowtimeF(e.extendedProps["showtime"]));
                     var id = toggleId(label);
@@ -402,9 +420,9 @@
 
             function updateEnabledFilters() {
                 var moviesInfo = reloadMoviesInfo();
-                var {formatFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
+                var {formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
 
-                var filters = formatFilters.concat(programFilters).concat(negativeFilters);
+                var filters = formatFilters.concat(languageFilters).concat(programFilters).concat(negativeFilters);
                 filters.forEach(({label, filterMovieF}) => {
                     var switchEl = document.getElementById(toggleId(label)).querySelector(".switch");
                     var filteredMovies = Object.values(moviesInfo).filter((info) => filterMovieF(info) && info["display"]["visible"])
@@ -473,10 +491,11 @@
 
             function createFilters(showtimesCalendar, listingCalendar) {
                 var moviesInfo = reloadMoviesInfo();
-                var {globalFilters, formatFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
+                var {globalFilters, formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
 
                 createTogglesByType("global-filter-toggles", globalFilters, showtimesCalendar, listingCalendar, moviesInfo, false);
                 createTogglesByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, moviesInfo);
+                createTogglesByType("language-filter-toggles", languageFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("program-filter-toggles", programFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createDisableFiltersToggle(showtimesCalendar);
@@ -594,6 +613,11 @@
                     var datasetFmt = strToDatasetId(fmtLabel);
                     entry.dataset[datasetFmt] = "true";
                 });
+                entry.dataset.languages = details["languages"].toSorted().join(",");
+                details["languages"].forEach((languageLabel) => {
+                    var datasetLanguage = strToDatasetId(languageLabel);
+                    entry.dataset[datasetLanguage] = "true";
+                });
                 entry.dataset.programs = details["programs"].toSorted().join(",");
                 details["programs"].forEach((programLabel) => {
                     var datasetProgram = strToDatasetId(programLabel);
@@ -657,6 +681,7 @@
                         return {
                             title,
                             formats: Array.from(new Set(titleShowtimes.map((s) => s["format"]))),
+                            languages: Array.from(new Set(titleShowtimes.map((s) => s["language"]))),
                             programs: Array.from(new Set(titleShowtimes.map((s) => s["programs"]).flat())),
                             noAList: titleShowtimes.some((s) => s["no_alist"]),
                             isOpenCaption: titleShowtimes.some((s) => s["is_open_caption"]),
@@ -806,6 +831,9 @@
                 }
                 var formatStr = `<p>${rawFormatStr}</p>`;
 
+                var rawLanguageStr = showtimeDetails["language"];
+                var languageStr = rawLanguageStr === "UNKNOWN" ? "" : `<p>Language: ${rawLanguageStr}</p>`;
+
                 var programsStr = "";
                 var programs = showtimeDetails["programs"];
                 if (programs?.length) {
@@ -813,7 +841,7 @@
                 }
 
                 var detailsEl = document.createElement("div");
-                detailsEl.innerHTML = formatStr + programsStr;
+                detailsEl.innerHTML = formatStr + languageStr + programsStr;
 
                 var showtimeDetailsPopover = document.getElementById("showtime-details");
                 showtimeDetailsPopover.innerHTML = "";
@@ -1072,6 +1100,8 @@
                         <div id="negative-filter-toggles"></div>
                         <hr />
                         <div id="format-filter-toggles"></div>
+                        <hr />
+                        <div id="language-filter-toggles"></div>
                         <hr />
                         <div id="program-filter-toggles"></div>
                     </div>
