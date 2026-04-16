@@ -66,7 +66,7 @@ def store_showtimes(theater, schedule, *, clean=True):
     inserted = []
     for movie in schedule.movies:
         for showing in movie.showings:
-            field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "programs", "start_time", "end_time", "create_time")
+            field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time", "end_time", "create_time")
             field_names_str = ", ".join(field_names)
             field_values = (
                 theater,
@@ -74,6 +74,7 @@ def store_showtimes(theater, schedule, *, clean=True):
                 showing.fmt,
                 int(showing.is_open_caption),
                 int(bool(showing.no_alist)),
+                showing.language,
                 json.dumps(sorted(showing.programs)),
                 showing.start.isoformat(),
                 showing.end.isoformat(),
@@ -83,7 +84,7 @@ def store_showtimes(theater, schedule, *, clean=True):
             cur.execute(f"""
                 INSERT INTO showtimes({field_names_str})
                 VALUES ({', '.join([_PH] * len(field_names))})
-                ON CONFLICT(theater, title, format, is_open_caption, no_alist, start_time) DO NOTHING""",
+                ON CONFLICT(theater, title, format, is_open_caption, no_alist, language, start_time) DO NOTHING""",
                 field_values
             )
             
@@ -106,7 +107,7 @@ def delete_showtimes(showtimes_dicts):
 
     delete_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     for showtime in showtimes_dicts:
-        delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "programs", "start_time")
+        delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time")
         delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
         delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
         delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
@@ -142,6 +143,7 @@ def load_deleted_showtimes(first_delete_time, last_delete_time, *, clean=True):
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
         row_dict["no_alist"] = row["no_alist"] == 1
+        row_dict["programs"] = json.loads(row["programs"] or "[]")
         if clean:
             del row_dict["delete_time"]
             del row_dict["id"]
@@ -198,6 +200,7 @@ def load_schedule(first_time, last_time, *, client_id):
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
         row_dict["no_alist"] = row["no_alist"] == 1
+        row_dict["programs"] = json.loads(row["programs"] or "[]")
         rows.append(row_dict)
     return rows
 
@@ -206,7 +209,7 @@ def add_to_schedule(showtime, *, client_id):
     cur = db.cursor()
 
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "programs", "start_time", "end_time", "create_time", "client")
+    field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time", "end_time", "create_time", "client")
     field_names_str = ", ".join(field_names)
     field_values = (
         showtime["theater"],
@@ -214,6 +217,7 @@ def add_to_schedule(showtime, *, client_id):
         showtime["format"],
         int(showtime["is_open_caption"]),
         int(bool(showtime["no_alist"])),
+        showtime["language"],
         json.dumps(sorted(showtime["programs"])),
         showtime["start_time"],
         showtime["end_time"],
@@ -224,7 +228,7 @@ def add_to_schedule(showtime, *, client_id):
     cur.execute(f"""
         INSERT INTO schedule({field_names_str})
         VALUES ({', '.join([_PH] * len(field_names))})
-        ON CONFLICT(theater, title, format, is_open_caption, no_alist, start_time, client) DO NOTHING""",
+        ON CONFLICT(theater, title, format, is_open_caption, no_alist, language, start_time, client) DO NOTHING""",
         field_values
     )
             
@@ -235,7 +239,7 @@ def remove_from_schedule(showtime, *, client_id):
     db = _connect()
     cur = db.cursor()
 
-    delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "start_time")
+    delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "start_time")
     delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
     delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
     delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
@@ -284,11 +288,12 @@ def _init_db():
         format TEXT,
         is_open_caption INT NOT NULL,
         no_alist INT NOT NULL,
+        language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         create_time TEXT NOT NULL,
-        PRIMARY KEY(theater, title, format, is_open_caption, no_alist, start_time)
+        PRIMARY KEY(theater, title, format, is_open_caption, no_alist, language, start_time)
     )""")
 
     # I could do this as a soft delete from showtimes. But this allows
@@ -300,6 +305,7 @@ def _init_db():
         format TEXT,
         is_open_caption INT NOT NULL,
         no_alist INT NOT NULL,
+        language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
@@ -319,12 +325,13 @@ def _init_db():
         format TEXT,
         is_open_caption INT NOT NULL,
         no_alist INT NOT NULL,
+        language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         create_time TEXT NOT NULL,
         client TEXT NOT NULL,
-        PRIMARY KEY(theater, title, format, is_open_caption, no_alist, start_time, client)
+        PRIMARY KEY(theater, title, format, is_open_caption, no_alist, language, start_time, client)
     )""")
     
     db.commit()
