@@ -56,7 +56,9 @@ def _load_schedules(page, runtime_dict):
                 movie = schedule.add_raw_movie(name, runtime_str)
             
             attributes, programs = _get_attributes_and_programs(movie_info)
-            movie.add_raw_showings(attributes, [raw_start_time], showdate, THEATER_NAME, programs)
+            is_open_caption = "Open Caption" in attributes
+
+            movie.add_raw_showings([raw_start_time], showdate, THEATER_NAME, "Standard", is_open_caption, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 

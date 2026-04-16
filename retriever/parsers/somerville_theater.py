@@ -28,18 +28,20 @@ def _load_schedules(schedule_json):
         raw_formats = showing.get("Attributes")
         if raw_formats:
             match raw_formats:
-                case ["0000000013"]: formats = ["35mm"]
-                case ["0000000015"]: formats = ["4k"]
-                case _: formats = raw_formats
+                case ["0000000013"]: fmt = "35mm"
+                case ["0000000015"]: fmt = "4k"
+                case _: fmt = raw_formats[0]
         else:
-            formats = ["Standard"]
+            fmt = "Standard"
 
         programs = [showing["PriceCardName"]]
         if programs[0] in ("Repertory Evening", "Matinee-SMV", "Evening-SMV", "$7 Tuesdays"):
             # You'd think "Reperatory Evening" would mean just that. But it's sometimes applied to new releases.
             programs = []
 
-        movie.add_raw_showings(formats, [start_dt], showdate, THEATER_NAME, programs)
+        is_open_caption = False
+
+        movie.add_raw_showings([start_dt], showdate, THEATER_NAME, fmt, is_open_caption, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 

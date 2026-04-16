@@ -12,18 +12,22 @@ SHOWTIMES_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/
 def _retrieve_page():
     return requests.get(SHOWTIMES_URL, headers=SHOWTIMES_HEADERS).text
 
-def _get_attributes(movie_info):
+def _parse_language(movie_info):
+    language_el = movie_info.find(class_="show-spec-label", string="Language:")
+    return language_el.next_sibling.strip() if language_el else None
+
+def _parse_format(movie_info):
     format_el = movie_info.find(class_="show-spec-label", string="Format:")
     if format_el:
         fmt = format_el.next_sibling.strip()
         if fmt.lower() in ("dcp", "4k dcp"):
-            return ["Standard"]
+            return "Standard"
         elif fmt.lower() in ("35mm film", ):
-            return ["35mm"]
+            return "35mm"
         else:
-            return [fmt]
+            return fmt
     else:
-        return ["Standard"]
+        return "Standard"
 
 def _load_schedules(page):
     schedules = {}
@@ -39,7 +43,6 @@ def _load_schedules(page):
         raw_programs = {el.get_text(strip=True) for el in movie_info.find(class_="pill-container").find_all(class_="pill")}
         programs = [prog for prog in raw_programs if prog not in ("35mm Screenings", "Closed Captions")]
         
-        # TODO: Now that we support programs, capture and set those.
         for screening_info in showtimes_section.find_all(lambda tag: tag.has_attr("data-date")):
             start_time_el = screening_info.find(class_="showtime")
             for child in start_time_el.children:
@@ -55,8 +58,12 @@ def _load_schedules(page):
                 runtime_str = movie_info.find(class_="show-spec-label", string="Run Time:").next_sibling.strip()
                 movie = schedule.add_raw_movie(name, runtime_str)
             
-            attributes = _get_attributes(movie_info)
-            movie.add_raw_showings(attributes, [raw_start_time], showdate, THEATER_NAME, programs)
+            fmt = _parse_format(movie_info)
+            language = _parse_language(movie_info)
+            # Brattle almost certainly offers open captions, but none right now, so I can't ensure I capture it correctly.
+            is_open_caption = False
+
+            movie.add_raw_showings([raw_start_time], showdate, THEATER_NAME, fmt, is_open_caption, language=language, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 

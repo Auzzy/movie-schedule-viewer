@@ -22,6 +22,8 @@ TIME_RE = re.compile(r"(?:\d\d?(?::\d\d)?(?:am|pm))")
 DAYS_RE = re.compile(rf"({WEEKDAY_REGEX})")
 
 
+# TODO: Read each movie's details page to grab its language.
+
 def _retrieve_page(url):
     return BeautifulSoup(requests.get(url).text, 'html.parser')
 
@@ -61,6 +63,9 @@ def _apply_projection_specifics(name, raw_showtime, day, attributes):
 # Example text (from The Drama, April 3 through April 9): "Screening in 35mm in Moviehouse 2 (MH2)
 # at 4:30pm, 7pm, & 9:30pm Fri-Sun and 4:30pm, 7:15pm, & 9:30pm on Thurs. Screening digitally in
 # all other houses and on Mon-Wed."
+
+# New example to try out:
+# Screening in 35mm in Moviehouse 2 (MH2) at 7:00pm/6:45pm and 9:30pm Friday through Sunday, April 17 - 19. Screening digitally in all other houses and on Mon-Wed.
 def _load_projection_specifics(movie_detail_path, fmt):
     day_to_times = None
     try:
@@ -118,12 +123,24 @@ def _program_adjustments(attributes, programs):
     _move(attributes, programs, "Digital Restoration")
     _move(attributes, programs, "Spotlight on Women")
     _move(attributes, programs, "Speaker")
+    _move(attributes, programs, "Director In Person")
     _move(attributes, programs, "Special Screenings")
     _move(attributes, programs, "Double Feature")
     _move(attributes, programs, "New Release")
 
     if "Digital Restoration" in programs and "New Release" in programs:
         programs.remove("New Release")
+
+def _parse_format(raw_attributes):
+    attributes = [a.lower() for a in raw_attributes]
+    if "70mm" in attributes:
+        return "70mm"
+    elif "35mm" in attributes:
+        return "35mm"
+    elif "standard" in attributes or "new release" in attributes or "standard format" in attributes:
+        return "Standard"
+    else:
+        return None
 
 def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
     schedule = DaySchedule(day)
@@ -158,7 +175,11 @@ def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
 
             _apply_projection_specifics(name, raw_showtime, day, attributes)
 
-            movie.add_raw_showings(attributes, [raw_showtime], day, "Coolidge Corner", programs)
+            fmt = _parse_format(attributes)
+            language = None
+            is_open_caption = raw_showtime in open_captions_dict.get(name, {}).get(day, [])
+
+            movie.add_raw_showings([raw_showtime], day, THEATER_NAME, fmt, is_open_caption, language=language, programs=programs)
 
     return schedule
 
