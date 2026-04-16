@@ -396,8 +396,8 @@
                         && !negativeFilters.some((field) => showtime[field])
                         && enabledFormats.includes(showtime["format"])
                         && enabledLanguages.includes(showtime["language"])
+                        && (!showtime["programs"]?.length || showtime["programs"].some((p) => enabledPrograms.includes(p)))
                         && globalFilters.every((filterShowtimesFunc) => filterShowtimesFunc(showtime));
-                        // && showtime["programs"].exists((p) => enabledPrograms.includes(p))
                 });
             }
 
