@@ -413,8 +413,11 @@
                 filters.forEach(({label, filterShowtimeF}) => {
                     var matchingShowtimes = showtimesCalendar.getEvents().filter((e) => filterShowtimeF(e.extendedProps["showtime"]));
                     var id = toggleId(label);
-                    var checkboxEl = document.getElementById(id).querySelector(".switch input");
-                    checkboxEl.checked = matchingShowtimes.length > 0;
+                    var toggleEl = document.getElementById(id);
+                    if (toggleEl.checkVisibility()) {
+                        var checkboxEl = toggleEl.querySelector(".switch input");
+                        checkboxEl.checked = matchingShowtimes.length > 0;
+                    }
                 });
             }
 
@@ -715,6 +718,8 @@
                 showtimesToEventSources(filteredShowtimes).forEach((eventSource) => {
                     showtimesCalendar.addEventSource(eventSource)
                 });
+
+                adjustFilterChecked(showtimesCalendar);
 
                 var minStartHour = Math.min(...showtimes.map((s) => dayjs(s["start_time"]).hour()));
                 var slotMinTime = minStartHour === Infinity ? "09:00:00" : `${minStartHour}:00:00`;
