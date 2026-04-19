@@ -14,7 +14,7 @@ from mailtrap import Address, Attachment, Mail, MailtrapClient
 from retriever import db
 from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
-from retriever.theaters import THEATERS, timezone
+from retriever.utils import offset_timezone
 
 
 def _build_attachment(content, filename, *, encoding="utf-8"):
@@ -78,21 +78,26 @@ def email_theater_schedules(theaters_to_schedule, dates, sender, sender_name, re
 def collect_schedule(theater, filepath, date_range, filter_params, quiet):
     date_range = [d.date() for d in date_range]
 
-    parser_name = THEATERS[theater].get("parser", "fandango_json")
-    parser = importlib.import_module(f"retriever.parsers.{parser_name}")
-    raw_schedules = parser.load_schedules_by_day(theater, date_range, quiet)
+    theater_info = db.get_theater(theater)
+    if not theater_info:
+        print(f"[ERROR] No theater found with the name {theater}. Has it been added?")
+        return
+
+    parser = importlib.import_module(f"retriever.parsers.{theater_info['parser']}")
+    raw_schedules = parser.load_schedules_by_day(theater_info, date_range, quiet)
 
     filtered_schedules = [schedule.filter(filter_params) for schedule in raw_schedules]
 
     if not filtered_schedules:
-        print("[WARN] Could not find any data for the requested date(s).")
+        date_range_str = ' - '.join(d.isoformat() for d in date_range)
+        print(f"[WARN] Could not find any data for the requested date(s): {date_range_str}")
         return
 
     return FullSchedule.create(filtered_schedules)
 
 
 def db_showtime_updates(theater, date_range, detected_showtimes):
-    tz = timezone(theater)
+    tz = offset_timezone(db.get_theater(theater)["tzname"])
     now = datetime.now(tz).replace(microsecond=0).isoformat()
 
     # The date_range is inclusive of the end time, but load_showtimes is not.
@@ -157,3 +162,14 @@ def send_deletion_report(day):
 def send_error_email(exc):
     error_str = "".join(traceback.format_exception(exc))
     _send_email("Schedule Updater encountered an error", error_str)
+
+
+def add_theater(name, *, tzname, parser, is_open=True, rank=None, fullname=None):
+    fullname = fullname or name
+    db.add_theater(name=name, fullname=fullname, tzname=tzname, is_open=is_open, rank=rank, parser=parser, code=None, query=None)
+
+
+def add_theater_from_search(query, *, name=None, rank=None):
+    name = name or query
+    search_result = fandango_json.search(query)
+    db.add_theater(**search_result, name=name, rank=rank)

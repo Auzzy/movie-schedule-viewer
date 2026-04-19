@@ -32,7 +32,7 @@ def _clean_name(name):
         name = name.rsplit("-", 1)[0]
     return name.strip()
 
-def _load_schedules(page, runtime_dict):
+def _load_schedules(page, runtime_dict, tzname):
     schedules = {}
     for movie_info in page.find_all(class_="film"):
         name = _clean_name(movie_info.find(class_="title").get_text(strip=True))
@@ -58,7 +58,7 @@ def _load_schedules(page, runtime_dict):
             attributes, programs = _get_attributes_and_programs(movie_info)
             is_open_caption = "Open Caption" in attributes
 
-            movie.add_raw_showings([raw_start_time], showdate, THEATER_NAME, "Standard", is_open_caption, programs=programs)
+            movie.add_raw_showings([raw_start_time], showdate, tzname, "Standard", is_open_caption, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
@@ -81,9 +81,9 @@ def _load_runtimes_by_movies():
     return runtime_dict
 
 
-def load_schedules_by_day(theater, date_range, quiet=False):
+def load_schedules_by_day(theater_info, date_range, quiet=False):
     schedules_by_day = []
     showtimes_html = BeautifulSoup(_retrieve_page(SHOWTIMES_URL), 'html.parser')
     runtime_dict = _load_runtimes_by_movies()
-    schedules_by_day = _load_schedules(showtimes_html, runtime_dict)
+    schedules_by_day = _load_schedules(showtimes_html, runtime_dict, theater_info["tzname"])
     return [s for s in schedules_by_day if date_range[0] <= s.day <= date_range[1]]

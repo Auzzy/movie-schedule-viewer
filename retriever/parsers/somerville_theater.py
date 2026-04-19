@@ -11,7 +11,7 @@ SHOWTIMES_HEADERS = {"veeziaccesstoken": "qvn2v2bvnf11k126ehz14zcxwr"}
 def _retrieve_page():
     return requests.get(SHOWTIMES_URL, headers=SHOWTIMES_HEADERS).json()
 
-def _load_schedules(schedule_json):
+def _load_schedules(schedule_json, tzname):
     schedules = {}
     for showing in schedule_json:
         name = showing["Title"]
@@ -41,12 +41,12 @@ def _load_schedules(schedule_json):
 
         is_open_caption = False
 
-        movie.add_raw_showings([start_dt], showdate, THEATER_NAME, fmt, is_open_caption, programs=programs)
+        movie.add_raw_showings([start_dt], showdate, tzname, fmt, is_open_caption, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
-def load_schedules_by_day(theater, date_range, quiet=False):
+def load_schedules_by_day(theater_info, date_range, quiet=False):
     schedules_by_day = []
     showtimes_json = _retrieve_page()
-    schedules_by_day = _load_schedules(showtimes_json)
+    schedules_by_day = _load_schedules(showtimes_json, theater_info["tzname"])
     return [s for s in schedules_by_day if date_range[0] <= s.day <= date_range[1]]

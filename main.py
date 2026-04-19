@@ -15,9 +15,10 @@ from ical.calendar_stream import IcsCalendarStream
 from ical.event import Event
 from pydantic import BaseModel
 
-from retriever import db, theaters
+from retriever import db
 from retriever.movie_times_lib import collect_schedule, db_showtime_updates, send_error_email, send_deletion_report
 from retriever.schedule import Filter, FullSchedule
+from retriever.utils import offset_timezone
 
 
 app = FastAPI()
@@ -160,7 +161,8 @@ def remove_showtime_from_schedule(showtime: dict[str, Any], client_id: Annotated
 
 @app.get("/theaters")
 def request_theaters():
-    return {"names": theaters.THEATER_NAMES}
+    theaters = db.get_theaters(is_open=True)
+    return {"names": [info["name"] for info in theaters]}
 
 @app.get("/theaters/last-updated")
 def request_theaters_last_updated():
@@ -168,7 +170,12 @@ def request_theaters_last_updated():
     updates_in_local_tz = {}
     for theater, last_update_utc_str in theaters_last_update.items():
         last_update_utc = datetime.fromisoformat(last_update_utc_str)
-        last_update_tz = last_update_utc.astimezone(theaters.timezone(theater))
+        theater_info = db.get_theater(theater)
+        if not theater_info:
+            print(f"[ERROR] There should not be showtimes in the DB for theaters that are not also in the DB.")
+            continue
+
+        last_update_tz = last_update_utc.astimezone(offset_timezone(theater_info["tzname"]))
         updates_in_local_tz[theater] = last_update_tz.isoformat()
 
     return {"updates": updates_in_local_tz}
@@ -178,8 +185,9 @@ def scan():
     try:
         print(f"Update starting at {datetime.now(timezone.utc)} UTC")
 
-        for theater in theaters.THEATER_NAMES:
-            tz = theaters.timezone(theater)
+        theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
+        for theater in theaters_to_scan:
+            tz = offset_timezone(db.get_theater(theater)["tzname"])
             today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
             date_range = (today, today + timedelta(weeks=4))
 

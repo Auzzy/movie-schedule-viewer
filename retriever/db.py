@@ -272,10 +272,62 @@ def theaters_last_update():
     cur.execute("""
         SELECT theater, MAX(create_time) as last_update_time
         FROM showtimes
-        GROUP BY theater"""
-    )
+        GROUP BY theater
+    """)
 
     return {row["theater"]: row["last_update_time"] for row in cur.fetchall()}
+
+
+def add_theater(name, fullname, code, tzname, is_open, rank, parser, query):
+    db = _connect()
+    cur = db.cursor()
+
+    code = code.lower() if code is not None else None
+
+    cur.execute(f"""
+        INSERT INTO theater(name, fullname, code, tzname, isopen, rank, parser, query)
+        VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})
+        ON CONFLICT(name) DO NOTHING""",
+        (name, fullname, code, tzname, int(bool(is_open)), rank, parser, query)
+    )
+
+    db.commit()
+    db.close()
+
+
+def get_theaters(*, is_open=None, clean=True):
+    db = _connect()
+    cur = db.cursor()
+
+    where_clause = ""
+    if is_open is not None:
+        where_clause = f"WHERE isopen = {int(bool(is_open))}"
+
+    cur.execute(f"""SELECT * FROM theater {where_clause} ORDER BY rank""")
+
+    rows = []
+    for row in cur.fetchall():
+        row_dict = dict(row)
+        row_dict["is_open"] = row["isopen"] == 1
+        if clean:
+            del row_dict["parser"]
+            
+        rows.append(row_dict)
+    return rows
+
+
+def get_theater(name):
+    db = _connect()
+    cur = db.cursor()
+
+    cur.execute(f"""SELECT * FROM theater WHERE name = {_PH} AND isopen = 1""", (name, ))
+
+    row_dict = dict(cur.fetchone() or {})
+    if row_dict:
+        row_dict["is_open"] = row_dict["isopen"] == 1
+        return row_dict
+    else:
+        return {}
 
 
 def _init_db():
@@ -333,7 +385,18 @@ def _init_db():
         client TEXT NOT NULL,
         PRIMARY KEY(theater, title, format, is_open_caption, no_alist, language, start_time, client)
     )""")
-    
+
+    cur.execute("""CREATE TABLE IF NOT EXISTS theater (
+        name TEXT PRIMARY KEY,
+        fullname TEXT NOT NULL,
+        code TEXT,
+        tzname TEXT NOT NULL,
+        isopen INTEGER NOT NULL,
+        rank INTEGER,
+        parser TEXT NOT NULL,
+        query TEXT
+    )""")
+
     db.commit()
     db.close()
 

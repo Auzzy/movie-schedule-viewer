@@ -45,8 +45,8 @@ def _dict_find_by_value(adict, target_value):
             return key
     return None
 
-def _apply_projection_specifics(name, raw_showtime, day, attributes):
-    showtime = Showing._parse_showtime(raw_showtime, THEATER_NAME)
+def _apply_projection_specifics(name, raw_showtime, day, tzname, attributes):
+    showtime = Showing._parse_showtime(raw_showtime, tzname)
     projection_specifics = projection_specifics_cache.get(name)
     if projection_specifics:
         fmt = projection_specifics["format"]
@@ -66,7 +66,7 @@ def _apply_projection_specifics(name, raw_showtime, day, attributes):
 
 # New example to try out:
 # Screening in 35mm in Moviehouse 2 (MH2) at 7:00pm/6:45pm and 9:30pm Friday through Sunday, April 17 - 19. Screening digitally in all other houses and on Mon-Wed.
-def _load_projection_specifics(movie_detail_path, fmt):
+def _load_projection_specifics(movie_detail_path, fmt, tzname):
     day_to_times = None
     try:
         detail_page = _retrieve_movie_detail_page(movie_detail_path)
@@ -91,7 +91,7 @@ def _load_projection_specifics(movie_detail_path, fmt):
 
                 day = end_date
                 while True:
-                    day_to_times[day] = [Showing._parse_showtime(time_str, THEATER_NAME) for time_str in time_matches]
+                    day_to_times[day] = [Showing._parse_showtime(time_str, tzname) for time_str in time_matches]
                     if day.weekday() == list(day_abbr).index(day_matches[0]):
                         break
 
@@ -105,12 +105,12 @@ def _load_projection_specifics(movie_detail_path, fmt):
         "showtimes": day_to_times
     }
 
-def _update_projection_specifics_cache(attributes, movie_info, name):
+def _update_projection_specifics_cache(attributes, movie_info, name, tzname):
     if "35mm" in attributes:
         attributes.remove("35mm")
         if name not in projection_specifics_cache:
             movie_detail_path = movie_info.find(class_="film-card__link")["href"]
-            projection_specifics_cache[name] = _load_projection_specifics(movie_detail_path, "35mm")
+            projection_specifics_cache[name] = _load_projection_specifics(movie_detail_path, "35mm", tzname)
 
 # Makes Coolidge's tagging work better for me by recatagorizing some.
 def _program_adjustments(attributes, programs):
@@ -142,7 +142,7 @@ def _parse_format(raw_attributes):
     else:
         return None
 
-def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
+def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dict):
     schedule = DaySchedule(day)
     for movie_info in page.find_all(class_="film-card"):
         details = movie_info.find(class_="film-card__detail")
@@ -165,7 +165,7 @@ def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
                 programs.append(signature_programs_dict.get(path, chip_label))
 
         _program_adjustments(base_attributes, programs)
-        _update_projection_specifics_cache(base_attributes, movie_info, name)
+        _update_projection_specifics_cache(base_attributes, movie_info, name, tzname)
         if not base_attributes:
             base_attributes.append("Standard")
 
@@ -173,13 +173,13 @@ def _load_schedule(page, day, open_captions_dict, signature_programs_dict):
             raw_showtime = showtime_el.get_text(strip=True)
             attributes = base_attributes + (["Open Caption"] if raw_showtime in open_captions_dict.get(name, {}).get(day, []) else [])
 
-            _apply_projection_specifics(name, raw_showtime, day, attributes)
+            _apply_projection_specifics(name, raw_showtime, day, tzname, attributes)
 
             fmt = _parse_format(attributes)
             language = None
             is_open_caption = raw_showtime in open_captions_dict.get(name, {}).get(day, [])
 
-            movie.add_raw_showings([raw_showtime], day, THEATER_NAME, fmt, is_open_caption, language=language, programs=programs)
+            movie.add_raw_showings([raw_showtime], day, tzname, fmt, is_open_caption, language=language, programs=programs)
 
     return schedule
 
@@ -213,7 +213,7 @@ def _load_open_captions_showtimes():
     return open_captions
 
 
-def load_schedules_by_day(theater, date_range, quiet=False):
+def load_schedules_by_day(theater_info, date_range, quiet=False):
     schedules_by_day = []
     if not quiet:
         print(".", end="", flush=True)
@@ -221,7 +221,7 @@ def load_schedules_by_day(theater, date_range, quiet=False):
     signature_programs_dict = _load_signature_programs()
     open_captions_dict = _load_open_captions_showtimes()
     for showtimes_html, day in _showtimes_text_iter(date_range):
-        schedules_by_day.append(_load_schedule(showtimes_html, day, open_captions_dict, signature_programs_dict))
+        schedules_by_day.append(_load_schedule(showtimes_html, day, theater_info["tzname"], open_captions_dict, signature_programs_dict))
 
         if not quiet:
             print(".", end="", flush=True)

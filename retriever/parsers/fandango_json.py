@@ -1,11 +1,13 @@
 import calendar
 import itertools
 import json
+import os
 import requests
+import time
 from datetime import date, timedelta
+from urllib.parse import urlencode
 
 from retriever.schedule import DaySchedule
-from retriever.theaters import THEATERS
 
 
 def _parse_language(attributes, theater):
@@ -35,7 +37,8 @@ def _parse_format(attributes):
     else:
         return None
 
-def _load_schedule(showtimes_json, theater):
+def _load_schedule(showtimes_json, theater_info):
+    tzname = theater_info["tzname"]
     day = date.fromisoformat(showtimes_json["viewModel"]["date"])
     schedule = DaySchedule(day)
     for movie_info in showtimes_json["viewModel"]["movies"]:
@@ -58,40 +61,92 @@ def _load_schedule(showtimes_json, theater):
                 attributes = [attr["name"].lower() for attr in showtimes_listing["amenities"]]
 
                 fmt = _parse_format([heading] + attributes) or heading
-                language = _parse_language(attributes, theater)
+                language = _parse_language(attributes, theater_info["name"])
                 is_open_caption = "open caption" in attributes
                 no_alist = "alternative content" in attributes or "no passes" in attributes
             elif showtimes_listing.get("isDolby", False):
                 fmt = "Dolby"
 
             raw_showtimes = [showtime["date"] for showtime in showtimes_listing["showtimes"]]
-            movie.add_raw_showings(raw_showtimes, day, theater, fmt, is_open_caption, no_alist, language)
+            movie.add_raw_showings(raw_showtimes, day, tzname, fmt, is_open_caption, no_alist, language)
 
     return schedule
 
 
-def _retrieve_json(theater, showdate):
-    url = f"https://www.fandango.com/napi/theaterMovieShowtimes/{THEATERS[theater]['code']}?startDate={showdate.isoformat()}"
-    headers = {"referer": f"https://www.fandango.com/{THEATERS[theater]['slug']}/theater-page?format=all&date={showdate.isoformat()}"}
-    return requests.get(url, headers=headers).json()
+def _request(url, headers=None):
+    return requests.get(url, headers=headers)
 
+def _request_fandango(url):
+    headers = {"referer": "https://www.fandango.com"}
+    return requests.get(url, headers=headers)
 
-def _showtimes_iter(theater, date_range):
+def _retrieve_showtimes(theater_code, showdate):
+    url = f"https://www.fandango.com/napi/theaterMovieShowtimes/{theater_code}?startDate={showdate.isoformat()}"
+    return _request_fandango(url).json()
+
+def _search_theaters(name):
+    search_param = urlencode({"search": name})
+    search_url = f"https://www.fandango.com/napi/home/autocompleteDesktopSearch?{search_param}"
+    search_response = _request_fandango(search_url).json()
+    return search_response["resultsByType"]["theaters"]["items"]
+
+def _get_timezone(latitude, longitude):
+    tzdb_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={os.environ['TZDB_KEY']}&format=json&by=position&lat={latitude}&lng={longitude}"
+    tzdb_response = _request(tzdb_url)
+    if tzdb_response.status_code == 429:
+        time.sleep(1)
+        return _get_timezone(latitude, longitude)
+
+    return tzdb_response.json()["zoneName"]
+
+def _showtimes_iter(theater_code, date_range):
     current_date, end_date = date_range
     while current_date <= end_date:
-        yield _retrieve_json(theater, current_date)
+        yield _retrieve_showtimes(theater_code, current_date)
         current_date += timedelta(days=1)
 
 
-def load_schedules_by_day(theater, date_range, quiet=False):
+def load_schedules_by_day(theater_info, date_range, quiet=False):
     schedules_by_day = []
     if not quiet:
         print(".", end="", flush=True)
-    for showtimes_json in _showtimes_iter(theater, date_range):
+    for showtimes_json in _showtimes_iter(theater_info["code"], date_range):
         if "viewModel" in showtimes_json:
-            schedules_by_day.append(_load_schedule(showtimes_json, theater))
+            schedules_by_day.append(_load_schedule(showtimes_json, theater_info))
 
         if not quiet:
             print(".", end="", flush=True)
 
     return schedules_by_day
+
+
+def search(query):
+    search_results = _search_theaters(query)
+    if len(search_results) > 1:
+        print(f"[ERROR] Found mutiple theaters for \"{query}\". Please narrow the search term.")
+        for result in search_results:
+            print(f"- {result['name']}")
+    elif len(search_results) < 1:
+        print(f"[ERROR] No results found for \"{query}\".") 
+    else:
+        link = search_results[0]["link"]
+        theater_code = link.strip("/").split("/", 1)[0].rsplit("-", 1)[1]
+
+        showtime_response = _retrieve_showtimes(theater_code, date.today())
+        theater_info = showtime_response["viewModel"]["theater"]["details"]
+        theater_full_name = theater_info["name"]
+        geo = theater_info["geo"]
+
+        tzname = _get_timezone(**geo)
+
+        return {
+            "query": query,
+            "fullname": theater_full_name,
+            "code": theater_code,
+            "tzname": tzname,
+            "is_open": True,
+            "parser": "fandango_json"
+        }
+
+if __name__ == "__main__":
+    search("AMC Braintree")

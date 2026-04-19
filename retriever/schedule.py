@@ -2,7 +2,6 @@ import calendar
 import re
 from datetime import date, datetime, timedelta
 
-from retriever.theaters import timezone
 from retriever.utils import offset_timezone
 from tzlocal import get_localzone_name
 
@@ -120,8 +119,8 @@ class Filter:
 
 class Showing:
     @staticmethod
-    def _parse_showtime(raw_showtime, theater):
-        tz = timezone(theater)
+    def _parse_showtime(raw_showtime, tzname):
+        tz = offset_timezone(tzname)
         if isinstance(raw_showtime, datetime):
             showtime = raw_showtime
         else:
@@ -134,8 +133,8 @@ class Showing:
         return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod
-    def create(raw_start_time, runtime_min, day, theater, fmt, is_open_caption, no_alist, language=None, programs=[]):
-        start_time = Showing._parse_showtime(raw_start_time, theater)
+    def create(raw_start_time, runtime_min, day, tzname, fmt, is_open_caption, no_alist, language=None, programs=[]):
+        start_time = Showing._parse_showtime(raw_start_time, tzname)
         start = datetime.combine(day, start_time)
         end = start + timedelta(minutes=runtime_min)
         lang = language or "UNKNOWN"
@@ -185,9 +184,9 @@ class Movie:
         self.runtime_min = runtime_min
         self.showings = []
 
-    def add_raw_showings(self, raw_times, day, theater, fmt, is_open_caption, no_alist=None, language=None, programs=[]):
+    def add_raw_showings(self, raw_times, day, tzname, fmt, is_open_caption, no_alist=None, language=None, programs=[]):
         for raw_time in raw_times:
-            self.showings.append(Showing.create(raw_time, self.runtime_min, day, theater, fmt, is_open_caption, no_alist, language, programs))
+            self.showings.append(Showing.create(raw_time, self.runtime_min, day, tzname, fmt, is_open_caption, no_alist, language, programs))
 
     @property
     def first(self):
