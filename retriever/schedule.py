@@ -35,7 +35,7 @@ def time_str_parser(value, *, tzname=None):
 def date_str_parser(value, *, tzname=None):
     tz = offset_timezone(tzname or SYSTEM_TZNAME)
     value = value.lower()
-    today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(tz).date()
     if value == "today":
         return today
     elif value == "tomorrow":
@@ -45,7 +45,7 @@ def date_str_parser(value, *, tzname=None):
         return today + timedelta(days=(weekdayno - today.weekday()) % 7)
     else:
         try:
-            showdate = datetime.fromisoformat(value).replace(tzinfo=tz)
+            showdate = datetime.fromisoformat(value).astimezone(tz).date()
         except ValueError:
             raise ParseError("Expected date in ISO format (YYYY-MM-DD).")
 
@@ -56,14 +56,14 @@ def date_str_parser(value, *, tzname=None):
 
 def date_range_str_parser(value, *, tzname=None):
     tz = offset_timezone(tzname or SYSTEM_TZNAME)
-    today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(tz).date()
     if value in MONTHS or value in MONTH_ABBRS:
         monthno = MONTHS.index(value) if value in MONTHS else MONTH_ABBRS.index(value)
         year = today.year + (0 if today.month <= monthno else 1)
         start_day = today.day if today.month == monthno else 1
-        start = datetime(year=year, month=monthno, day=start_day, tz=tz)
+        start = date(year=year, month=monthno, day=start_day)
         end_day = calendar.monthrange(year, monthno)[1]
-        end = datetime(year=year, month=monthno, day=end_day, tz=tz)
+        end = date(year=year, month=monthno, day=end_day)
     elif value.lower() == "movie week":
         start = today
         days_left = 6 if start.weekday() == PIVOT_DAY else ((PIVOT_DAY - start.weekday() - 1) % 7)
@@ -86,6 +86,9 @@ def date_range_str_parser(value, *, tzname=None):
                 end = date_str_parser(value[10:].split('-', 1)[1].strip())
         else:
             end = start
+
+    if start > end:
+        raise ParseError(f"The end date cannot come before the start date: {end.isoformat()} - {start.isoformat()}")
 
     return (start, end)
 
