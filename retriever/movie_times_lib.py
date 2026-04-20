@@ -92,8 +92,6 @@ def email_theater_schedules(schedules, dates, sender, sender_name, receiver):
 
 
 def collect_schedule(theater, filepath, date_range, filter_params, quiet):
-    date_range = [d.date() for d in date_range]
-
     theater_info = db.get_theater(theater)
     if not theater_info:
         print(f"[ERROR] No theater found with the name {theater}. Has it been added?")

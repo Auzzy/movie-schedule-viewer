@@ -221,7 +221,7 @@ def scan():
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
         for theater in theaters_to_scan:
             tz = offset_timezone(db.get_theater(theater)["tzname"])
-            today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+            today = datetime.now(tz).date()
             date_range = (today, today + timedelta(days=days_to_scan))
 
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
