@@ -14,7 +14,12 @@ def _retrieve_page():
 
 def _parse_language(movie_info):
     language_el = movie_info.find(class_="show-spec-label", string="Language:")
-    return language_el.next_sibling.strip() if language_el else None
+    if language_el:
+        raw_language = language_el.next_sibling.strip().replace("Subtitles", "subtitles")
+        with_subtitles = [s.strip() for s in raw_language.split("w/", 1)]
+        return " with ".join(with_subtitles)
+    else:
+        return None
 
 def _parse_format(movie_info):
     format_el = movie_info.find(class_="show-spec-label", string="Format:")
