@@ -243,7 +243,7 @@ def remove_from_schedule(showtime, *, client_id):
     delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
     delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
     delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
-    cur.execute(f"DELETE FROM schedule WHERE {delete_field_where_str} and {_PH}", delete_field_values + (client_id,))
+    cur.execute(f"DELETE FROM schedule WHERE {delete_field_where_str} and client = {_PH}", delete_field_values + (client_id,))
     
     db.commit()
     db.close()
