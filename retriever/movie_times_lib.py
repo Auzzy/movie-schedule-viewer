@@ -172,4 +172,13 @@ def add_theater(name, *, tzname, parser, is_open=True, rank=None, fullname=None)
 def add_theater_from_search(query, *, name=None, rank=None):
     name = name or query
     search_result = fandango_json.search(query)
-    db.add_theater(**search_result, name=name, rank=rank)
+    if len(search_result) == 1:
+        result = search_result[0]
+        tzname = fandango_json.get_tzname(result["code"])
+        db.add_theater(**result, name=name, rank=rank, tzname=tzname)
+    elif len(search_result) < 1:
+        print(f"[ERROR] No results found for \"{query}\".") 
+    else:
+        print(f"[ERROR] Found mutiple theaters for \"{query}\". Please narrow the search term.")
+        for result in search_result:
+            print(f"- {result['fullname']}")

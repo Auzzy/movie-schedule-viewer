@@ -119,34 +119,26 @@ def load_schedules_by_day(theater_info, date_range, quiet=False):
 
     return schedules_by_day
 
-
 def search(query):
     search_results = _search_theaters(query)
-    if len(search_results) > 1:
-        print(f"[ERROR] Found mutiple theaters for \"{query}\". Please narrow the search term.")
-        for result in search_results:
-            print(f"- {result['name']}")
-    elif len(search_results) < 1:
-        print(f"[ERROR] No results found for \"{query}\".") 
-    else:
-        link = search_results[0]["link"]
+    if not search_results:
+        return []
+        
+    results = []
+    for result in search_results:
+        link = result["link"]
         theater_code = link.strip("/").split("/", 1)[0].rsplit("-", 1)[1]
 
-        showtime_response = _retrieve_showtimes(theater_code, date.today())
-        theater_info = showtime_response["viewModel"]["theater"]["details"]
-        theater_full_name = theater_info["name"]
-        geo = theater_info["geo"]
-
-        tzname = _get_timezone(**geo)
-
-        return {
+        results.append({
             "query": query,
-            "fullname": theater_full_name,
+            "fullname": result["name"],
             "code": theater_code,
-            "tzname": tzname,
             "is_open": True,
             "parser": "fandango_json"
-        }
+        })
+    return results
 
-if __name__ == "__main__":
-    search("AMC Braintree")
+def get_tzname(theater_code):
+    showtime_response = _retrieve_showtimes(theater_code, date.today())
+    theater_info = showtime_response["viewModel"]["theater"]["details"]
+    return _get_timezone(**theater_info["geo"])
