@@ -267,7 +267,7 @@ class FullSchedule:
     def create(schedules):
         theaters = {schedule.theater for schedule in schedules}
         if len(theaters) > 1:
-            raise ValueError(f"A schedule must cover a single theater. Found {len(theaters)}: {', '.join(sorted(list(theaters)))")
+            raise ValueError(f"A schedule must cover a single theater. Found {len(theaters)}: {', '.join(sorted(list(theaters)))}")
 
         theater = list(theaters)[0]
 
@@ -285,7 +285,7 @@ class FullSchedule:
         return FullSchedule(theater, days[0], days[-1], movies.values())
 
     def __init__(self, theater, start, end, movies):
-        sel.theater = theater
+        self.theater = theater
         self.start = start
         self.end = end
         self.movies = movies

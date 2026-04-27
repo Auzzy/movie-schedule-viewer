@@ -1,6 +1,7 @@
 import itertools
 import os
 import sys
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
@@ -16,7 +17,8 @@ from ical.event import Event
 from pydantic import BaseModel
 
 from retriever import db
-from retriever.movie_times_lib import collect_schedule, db_showtime_updates, send_error_email, send_deletion_report
+from retriever.movie_times_lib import collect_schedule, db_showtime_updates, \
+        send_error_email, send_deletion_report, send_watchlist_notification
 from retriever.schedule import Filter, FullSchedule
 from retriever.utils import offset_timezone
 
@@ -180,12 +182,54 @@ def request_theaters_last_updated():
 
     return {"updates": updates_in_local_tz}
 
+@app.get("/watchlist")
+def request_watchlist(client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    watchlist = defaultdict(list)
+    for watchlist_entry in db.load_watchlist(client_id):
+        watchlist[watchlist_entry["title"]].append({
+            "theater": watchlist_entry["theater"],
+            "sent": watchlist_entry["sent_time"]
+        })
+
+    return dict(watchlist)
+
+
+@app.post("/watchlist/new")
+def add_new_watchlist_entry(title: Annotated[str, Body()], theaters: Annotated[list[str], Body()], client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    theaters_response = []
+    for theater_name in theaters:
+        db.add_to_watchlist(title, theater_name, client_id=client_id)
+        theaters_response.append({"theater": theater_name, "sent": None})
+    return {title: theaters_response}
+
+
+@app.post("/watchlist/add")
+def add_to_watchlist(title: Annotated[str, Body()], theater: Annotated[str, Body()], client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    db.add_to_watchlist(title, theater, client_id=client_id)
+    return {}
+
+
+@app.post("/watchlist/remove")
+def remove_from_watchlist(title: Annotated[str, Body()], theater: Annotated[str, Body()], client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    db.remove_from_watchlist(title, theater, client_id=client_id)
+    return {}
+
+
 @app.get("/update-showtimes")
 def scan():
     try:
         print(f"Update starting at {datetime.now(timezone.utc)} UTC")
 
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
+        schedules = []
         for theater in theaters_to_scan:
             tz = offset_timezone(db.get_theater(theater)["tzname"])
             today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -194,8 +238,11 @@ def scan():
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
-                stored = db.store_showtimes(schedule)
-                db_showtime_updates(theater, date_range, schedule)
+                schedules.append(schedule)
+                db.store_showtimes(schedule)
+                db_showtime_updates(date_range, schedule)
+
+        send_watchlist_notification(schedules)
 
         return {"success": True}
     except Exception as exc:
