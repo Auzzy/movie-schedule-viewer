@@ -2,6 +2,7 @@
 <html lang='en'>
     <head>
         <meta charset='utf-8' />
+        <link rel="stylesheet" href="static/accordion.css" />
         <link rel="stylesheet" href="static/dropdown.css" />
         <link rel="stylesheet" href="static/slider.css" />
         <link rel="stylesheet" href="static/base.css" />
@@ -199,7 +200,7 @@
             }
 
             function getTheaterNames() {
-                return get("theaters/");
+                return get("theaters");
             }
 
             async function refreshTheatersLastUpdated() {
@@ -927,6 +928,56 @@
                 });
             }
 
+            function addToWatchlistPopover(title, theaterNames, watchedTheaters) {
+                var watchlistRoot = document.getElementById("watchlist");
+
+                var accordionButtonEl = Object.assign(document.createElement("button"), {className: "accordion", innerHTML: title});
+                accordionButtonEl.addEventListener("click", function() {
+                    Array.from(watchlistRoot.getElementsByClassName("accordion"))
+                        .filter((el) => el !== accordionButtonEl)
+                        .forEach((el) => {
+                            el.classList.remove("active");
+                            el.nextElementSibling.style.display = "none";
+                        });
+
+                    this.classList.toggle("active");
+                    var panel = this.nextElementSibling;
+                    panel.style.display = panel.style.display === "block" ? "none" : "block";
+                });
+
+                var panelEl = Object.assign(document.createElement("div"), {className: "panel"});
+                theaterNames.forEach((theater) => {
+                    var info = Array.from(watchedTheaters).find((entry) => entry["theater"] === theater);
+                    var checked = info !== undefined;
+                    var disabled = checked && info["sent"] !== null;
+
+                    var checkboxEl = Object.assign(document.createElement("input"), {type: "checkbox", value: theater, checked: checked, innerHTML: theater});
+                    checkboxEl.addEventListener("change", (e) => {
+                        var theater = e.target.value;
+                        var title = e.target.closest("[data-movie]").dataset.movie;
+                        var url = e.target.checked ? "watchlist/add" : "watchlist/remove";
+                        post(url, {title: title, theater: theater});
+                    });
+
+                    var checkboxLabelEl = document.createElement("label");
+                    checkboxLabelEl.appendChild(checkboxEl);
+                    checkboxLabelEl.appendChild(document.createTextNode(theater));
+                    panelEl.appendChild(checkboxLabelEl);
+                    panelEl.appendChild(document.createElement("br"));
+                });
+
+                var watchlistEntry = document.createElement("div");
+                watchlistEntry.dataset.movie = title;
+                watchlistEntry.appendChild(accordionButtonEl);
+                watchlistEntry.appendChild(panelEl);
+
+                var nextEl = Array.from(watchlistRoot.children).find((el) => el.dataset.movie.toLowerCase() > title.toLowerCase());
+                if (nextEl === undefined) {
+                    watchlistRoot.appendChild(watchlistEntry);
+                } else {
+                    nextEl.before(watchlistEntry);
+                }
+            }
 
             document.addEventListener('DOMContentLoaded', function() {
                 {% if allow_editing is none %}
@@ -1082,6 +1133,56 @@
                     theaterSelectedEl.dataset.theater = defaultTheaterEl.dataset.theater;
                     showTheatersOnHover();
                 });
+
+                document.getElementById("manage-watchlist-button").addEventListener("click", function() {
+                    var watchlistRoot = document.getElementById("watchlist");
+                    watchlistRoot.innerHTML = "";
+
+                    Promise.all([getTheaterNames(), get("watchlist")])
+                        .then(([theaterNamesResult, watchlistResult]) => {
+                            Object.entries(watchlistResult).forEach(([title, theaterInfo]) => {
+                                addToWatchlistPopover(title, theaterNamesResult["names"], theaterInfo);
+                            });
+                        })
+                        .then(() => {
+                            document.getElementById("manage-watchlist-popover").showPopover();
+                        });
+                });
+
+                document.getElementById("add-to-watchlist-button").addEventListener("click", function() {
+                    var theatersRoot = document.getElementById("add-to-watchlist-theaters");
+                    theatersRoot.innerHTML = "";
+
+                    getTheaterNames().then((result) => {
+                        result["names"].forEach((theater) => {
+                            var checkboxEl = Object.assign(document.createElement("input"), {type: "checkbox", value: theater, innerHTML: theater});
+                            var checkboxLabelEl = document.createElement("label");
+                            checkboxLabelEl.appendChild(checkboxEl);
+                            checkboxLabelEl.appendChild(document.createTextNode(theater));
+                            theatersRoot.appendChild(checkboxLabelEl);
+                            theatersRoot.appendChild(document.createElement("br"));
+                        });
+                    })
+                    .then(() => {
+                        document.getElementById("add-to-watchlist-popover").showPopover();
+                    });
+                });
+
+                var addToWatchlistTextbox = document.getElementById("add-to-watchlist");
+                addToWatchlistTextbox.addEventListener("keydown", function(e) {
+                    if (e.code === "Enter") {
+                        var title = addToWatchlistTextbox.value;
+                        var theaters = Array.from(document.getElementById("add-to-watchlist-theaters").getElementsByTagName("input"))
+                            .filter((el) => el.checked)
+                            .map((el) => el.value);
+                        if (theaters.length > 0) {
+                            post("watchlist/new", {title: title, theaters: theaters})
+                                .then(function(result) {
+                                    addToWatchlistTextbox.value = "";
+                                });
+                        }
+                    }
+                });
             });
         </script>
     </head>
@@ -1090,6 +1191,16 @@
         <div popover id="movie-showtime-listing" style="width: 25%; height: 65%;">
             <div id='listing-calendar'></div>
         </div>
+        {% if allow_editing %}
+        <div popover id="manage-watchlist-popover" style="width: 15%; height: 40%; padding: 10px;">
+            <h2 style="margin-top: 5px;">Watchlist</h2>
+            <div id="watchlist"></div>
+        </div>
+        <div popover id="add-to-watchlist-popover" style="width: 15%; height: 40%; padding: 10px;">
+            <input id="add-to-watchlist" type="text" placeholder="Enter release name..." />
+            <div id="add-to-watchlist-theaters"></div>
+        </div>
+        {% endif %}
         <div style="display: flex;">
             <div style="flex: 10%">
                 <div style="height: 98vh; overflow-y: scroll; overflow-x: hidden; scrollbar-width: none; margin-right: 25px">
@@ -1126,6 +1237,10 @@
                     </div>
                     {% if allow_editing %}
                     <div style="flex: 17%; padding-right: 10px;">
+                        <div style="margin-bottom: 30px;">
+                            <button type="button" id="manage-watchlist-button" title="Manage Watchlist">Manage Watchlist</button>
+                            <button type="button" id="add-to-watchlist-button" title="Add to Watchlist">Add to Watchlist</button>
+                        </div>
                         <div style="height: 98vh; overflow-y: scroll; scrollbar-width: none">
                             <div id='schedule-calendar'></div>
                         </div>

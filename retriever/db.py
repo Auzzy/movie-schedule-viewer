@@ -341,6 +341,83 @@ def get_theater(name):
         return {}
 
 
+def load_watchlist(client_id):
+    db = _connect()
+    cur = db.cursor()
+
+    query_params = (client_id, )
+
+    cur.execute(f"""
+        SELECT *
+        FROM watchlist w
+        WHERE w.client = {_PH}
+        ORDER BY w.title""",
+        query_params
+    )
+
+    return [dict(row) for row in cur.fetchall()]
+
+
+def load_all_watchlists():
+    db = _connect()
+    cur = db.cursor()
+
+    cur.execute(f"""
+        SELECT *
+        FROM watchlist w
+        ORDER BY w.title
+    """)
+
+    return [dict(row) for row in cur.fetchall()]
+
+
+def watchlist_mark_sent(theater_title_pairs):
+    sent_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+    theater_title_pairs_str = ", ".join(repr(p) for p in theater_title_pairs)
+
+    db = _connect()
+    cur = db.cursor()
+
+    cur.execute(f"""
+        UPDATE watchlist
+        SET sent_time = {_PH}
+        WHERE (theater, title) IN ({theater_title_pairs_str})""",
+        (sent_time, ))
+
+    db.commit()
+    db.close()
+
+
+def add_to_watchlist(title, theater , *, client_id):
+    db = _connect()
+    cur = db.cursor()
+
+    cur.execute(f"""
+        INSERT INTO watchlist(title, theater, client)
+        VALUES ({_PH}, {_PH}, {_PH})
+        ON CONFLICT(title, theater, client) DO NOTHING""",
+        (title, theater, client_id)
+    )
+
+    db.commit()
+    db.close()
+
+
+def remove_from_watchlist(title, theater , *, client_id):
+    db = _connect()
+    cur = db.cursor()
+
+    cur.execute(f"""
+        DELETE FROM watchlist
+        WHERE title = {_PH} and theater = {_PH} and client = {_PH}""",
+        (title, theater, client_id)
+    )
+
+    db.commit()
+    db.close()
+
+
 def _init_db():
     db = _connect()
     cur = db.cursor()
@@ -406,6 +483,14 @@ def _init_db():
         rank INTEGER,
         parser TEXT NOT NULL,
         query TEXT
+    )""")
+
+    cur.execute("""CREATE TABLE IF NOT EXISTS watchlist (
+        title TEXT NOT NULL,
+        theater TEXT NOT NULL,
+        sent_time TEXT,
+        client TEXT NOT NULL,
+        PRIMARY KEY(title, theater, client)
     )""")
 
     db.commit()

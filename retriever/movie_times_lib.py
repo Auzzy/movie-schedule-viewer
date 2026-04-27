@@ -14,7 +14,7 @@ from mailtrap import Address, Attachment, Mail, MailtrapClient
 from retriever import db
 from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
-from retriever.utils import offset_timezone
+from retriever.utils import group_dict_by, group_obj_by, offset_timezone
 
 
 def _build_attachment(content, filename, *, encoding="utf-8"):
@@ -117,6 +117,36 @@ def db_showtime_updates(date_range, schedule):
     return deleted_showtimes
 
 
+def send_watchlist_notification(schedules):
+    watchlist = db.load_all_watchlists()
+    watchlist_by_theater = group_dict_by(watchlist, "theater")
+
+    mark_sent = []
+    watchlist_hits = defaultdict(lambda: defaultdict(list))
+    for schedule in schedules:
+        theater_watchlist = {entry["title"].lower(): entry["sent_time"] is None for entry in watchlist_by_theater[schedule.theater]}
+        for movie in schedule.movies:
+            should_send = theater_watchlist.get(movie.name.lower())
+            if not should_send:
+                continue
+
+            watchlist_hits[movie.name][schedule.theater].extend(movie.showings)
+            mark_sent.append((schedule.theater, movie.name))
+
+    if watchlist_hits:
+        lines = []
+        for title, showings_dict in watchlist_hits.items():
+            lines.append(f"Showings added for {title}:")
+            for theater, showings in showings_dict.items():
+                days_str = ", ".join(sorted({str(showing.start.date()) for showing in showings}))
+                lines.append(f"- {theater} - {days_str}")
+
+        msg = "\n".join(lines)
+        _send_email("Watchlist notification", msg, receiver=None)
+
+        db.watchlist_mark_sent(mark_sent)
+
+
 def _true_deletion_filter(deleted_showtimes, current_showtimes):
     def _drop_key(adict, key):
         return {k: v for k, v, in adict.items() if k != key}
@@ -134,12 +164,6 @@ def _true_deletion_filter(deleted_showtimes, current_showtimes):
     return filtered_deleted_showtimes
 
 def send_deletion_report(day):
-    def _group_by_theater(showtimes):
-        showtimes_by_theater = defaultdict(list)
-        for showtime in showtimes:
-            showtimes_by_theater[showtime["theater"]].append(showtime)
-        return dict(showtimes_by_theater)
-
     def _start_range(showtimes):
         time_strs = sorted([s["start_time"] for s in showtimes])
         start = datetime.fromisoformat(time_strs[0]).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -149,7 +173,7 @@ def send_deletion_report(day):
     day = day.replace(hour=0, minute=0, second=0, microsecond=0)
     eod = day + timedelta(days=1)
 
-    deleted_showtimes_by_theater = _group_by_theater(db.load_deleted_showtimes(day, eod))
+    deleted_showtimes_by_theater = group_dict_by(db.load_deleted_showtimes(day, eod), "theater")
     filtered_deleted_showtimes = []
     for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
         theater_showtimes = db.load_showtimes(theater, *_start_range(deleted_showtimes))
