@@ -27,12 +27,12 @@ time_str_parser = _wrap_parser(_raw_time_parser)
 
 
 def db_main(theater, date_range, deletion_report=True):
-    schedule_range = collect_schedule(theater, None, date_range, Filter.empty(), False)
-    if not schedule_range:
+    schedule = collect_schedule(theater, None, date_range, Filter.empty(), False)
+    if not schedule:
         return
 
-    showtimes = db.store_showtimes(theater, schedule_range)
-    deleted_showtimes = db_showtime_updates(theater, date_range, showtimes)
+    stored = db.store_showtimes(theater, schedule)
+    deleted_showtimes = db_showtime_updates(theater, date_range, schedule)
     if deletion_report and deleted_showtimes:
         send_deletion_report(deleted_showtimes)
 

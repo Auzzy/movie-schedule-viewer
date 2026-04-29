@@ -29,6 +29,34 @@ def _cast_value(value):
     else:
         return value
 
+def serialize_showing(theater, title, showing):
+    return {
+        "theater": theater,
+        "title": title,
+        "format": showing.fmt,
+        "is_open_caption": bool(showing.is_open_caption),
+        "no_alist": bool(showing.no_alist),
+        "language": showing.language,
+        "programs": sorted(showing.programs),
+        "start_time": showing.start.isoformat(),
+        "end_time": showing.end.isoformat()
+    }
+
+def serialize_schedule(theater, schedule):
+    return [serialize_showing(theater, movie.name, showing) for movie in schedule.movies for showing in movie.showings]
+
+def _read_showtimes_query(raw_rows, *, clean=True):
+    rows = []
+    for row in raw_rows:
+        row_dict = dict(row)
+        row_dict["is_open_caption"] = row["is_open_caption"] == 1
+        row_dict["no_alist"] = row["no_alist"] == 1
+        row_dict["programs"] = json.loads(row["programs"] or "[]")
+        if clean:
+            del row_dict["create_time"]
+        rows.append(row_dict)
+    return rows
+
 def load_showtimes(theater, first_time, last_time, title=None, *, clean=True):
     db = _connect()
     cur = db.cursor()
@@ -47,23 +75,13 @@ def load_showtimes(theater, first_time, last_time, title=None, *, clean=True):
         query_params
     )
 
-    rows = []
-    for row in cur.fetchall():
-        row_dict = dict(row)
-        row_dict["is_open_caption"] = row["is_open_caption"] == 1
-        row_dict["no_alist"] = row["no_alist"] == 1
-        row_dict["programs"] = json.loads(row["programs"] or "[]")
-        if clean:
-            del row_dict["create_time"]
-        rows.append(row_dict)
-    return rows
+    return _read_showtimes_query(cur.fetchall())
 
 def store_showtimes(theater, schedule, *, clean=True):
     db = _connect()
     cur = db.cursor()
 
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    inserted = []
     for movie in schedule.movies:
         for showing in movie.showings:
             field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time", "end_time", "create_time")
@@ -80,26 +98,19 @@ def store_showtimes(theater, schedule, *, clean=True):
                 showing.end.isoformat(),
                 create_time
             )
-            
+
             cur.execute(f"""
                 INSERT INTO showtimes({field_names_str})
                 VALUES ({', '.join([_PH] * len(field_names))})
                 ON CONFLICT(theater, title, format, is_open_caption, no_alist, language, start_time) DO NOTHING""",
                 field_values
             )
-            
-            inserted_dict = dict(zip(field_names, field_values))
-            inserted_dict["is_open_caption"] = inserted_dict["is_open_caption"] == 1
-            inserted_dict["no_alist"] = inserted_dict["no_alist"] == 1
-            inserted_dict["programs"] = json.loads(inserted_dict["programs"] or "[]")
-            if clean:
-                del inserted_dict["create_time"]
-            inserted.append(inserted_dict)
 
     db.commit()
-    db.close()
 
-    return inserted
+    cur.execute(f"""SELECT * FROM showtimes s WHERE s.create_time >= {_PH} ORDER BY s.title""", (create_time, ))
+
+    return _read_showtimes_query(cur.fetchall())
 
 def delete_showtimes(showtimes_dicts):
     db = _connect()

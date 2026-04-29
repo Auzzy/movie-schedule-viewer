@@ -192,10 +192,10 @@ def scan():
             date_range = (today, today + timedelta(weeks=4))
 
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
-            showtimes = collect_schedule(theater, None, date_range, Filter.empty(), True)
-            if showtimes:
-                stored_showtimes = db.store_showtimes(theater, showtimes)
-                db_showtime_updates(theater, date_range, stored_showtimes)
+            schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
+            if schedule:
+                stored = db.store_showtimes(theater, schedule)
+                db_showtime_updates(theater, date_range, schedule)
 
         return {"success": True}
     except Exception as exc:
