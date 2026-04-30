@@ -23,9 +23,9 @@ def _build_attachment(content, filename, *, encoding="utf-8"):
         filename=filename
     )
 
-def _ics_attachments(theaters_to_schedule):
+def _ics_attachments(schedules):
     attachments = []
-    for theater, schedule in theaters_to_schedule.items():
+    for schedule in schedules:
         calendar = Calendar()
         for movie in schedule.movies:
             for showing in movie.showings:
@@ -36,15 +36,15 @@ def _ics_attachments(theaters_to_schedule):
                 )
 
         calendar_ics = IcsCalendarStream.calendar_to_ics(calendar)
-        attachments.append(_build_attachment(calendar_ics, f"{theater}.ics"))
+        attachments.append(_build_attachment(calendar_ics, f"{schedule.theater}.ics"))
 
     return attachments
 
-def _plaintext_attachments(theaters_to_schedule):
+def _plaintext_attachments(schedules):
     attachments = []
-    for theater, schedule in theaters_to_schedule.items():
+    for schedule in schedules:
         schedule_text = schedule.output(name_only=False, date_only=True)
-        attachments.append(_build_attachment(schedule_text, f"{theater}.txt"))
+        attachments.append(_build_attachment(schedule_text, f"{schedule.theater}.txt"))
 
     return attachments
 
@@ -65,8 +65,8 @@ def _send_email(subject, text, sender=None, sender_name=None, receiver=None, att
     client.send(mail)
 
 
-def email_theater_schedules(theaters_to_schedule, dates, sender, sender_name, receiver):
-    attachments = _plaintext_attachments(theaters_to_schedule) + _ics_attachments(theaters_to_schedule)
+def email_theater_schedules(schedules, dates, sender, sender_name, receiver):
+    attachments = _plaintext_attachments(schedules) + _ics_attachments(schedules)
 
     subject = f"Movie Schedules {dates[0].isoformat()}"
     if dates[0] != dates[1]:
@@ -96,17 +96,17 @@ def collect_schedule(theater, filepath, date_range, filter_params, quiet):
     return FullSchedule.create(filtered_schedules)
 
 
-def db_showtime_updates(theater, date_range, schedule):
-    tz = offset_timezone(db.get_theater(theater)["tzname"])
+def db_showtime_updates(date_range, schedule):
+    tz = offset_timezone(db.get_theater(schedule.theater)["tzname"])
     now = datetime.now(tz).replace(microsecond=0).isoformat()
 
     # The date_range is inclusive of the end time, but load_showtimes is not.
     aware_date_range = (date_range[0].astimezone(tz), date_range[1].astimezone(tz) + timedelta(days=1))
 
-    current_showtimes = db.serialize_schedule(theater, schedule)
+    current_showtimes = db.serialize_schedule(schedule)
 
     deleted_showtimes = []
-    for showtime in db.load_showtimes(theater, *aware_date_range):
+    for showtime in db.load_showtimes(schedule.theater, *aware_date_range):
         showtime_dict = dict(showtime)
 
         if now < showtime_dict['start_time'] and showtime_dict not in current_showtimes:

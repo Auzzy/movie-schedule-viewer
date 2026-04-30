@@ -42,8 +42,8 @@ def serialize_showing(theater, title, showing):
         "end_time": showing.end.isoformat()
     }
 
-def serialize_schedule(theater, schedule):
-    return [serialize_showing(theater, movie.name, showing) for movie in schedule.movies for showing in movie.showings]
+def serialize_schedule(schedule):
+    return [serialize_showing(schedule.theater, movie.name, showing) for movie in schedule.movies for showing in movie.showings]
 
 def _read_showtimes_query(raw_rows, *, clean=True):
     rows = []
@@ -77,7 +77,7 @@ def load_showtimes(theater, first_time, last_time, title=None, *, clean=True):
 
     return _read_showtimes_query(cur.fetchall())
 
-def store_showtimes(theater, schedule, *, clean=True):
+def store_showtimes(schedule, *, clean=True):
     db = _connect()
     cur = db.cursor()
 
@@ -87,7 +87,7 @@ def store_showtimes(theater, schedule, *, clean=True):
             field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time", "end_time", "create_time")
             field_names_str = ", ".join(field_names)
             field_values = (
-                theater,
+                schedule.theater,
                 movie.name,
                 showing.fmt,
                 int(showing.is_open_caption),

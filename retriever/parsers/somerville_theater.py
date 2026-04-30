@@ -18,7 +18,7 @@ def _load_schedules(schedule_json, tzname):
         start_dt = datetime.fromisoformat(showing["FeatureStartTime"])
 
         showdate = start_dt.date()
-        schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(showdate))
+        schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
 
         movie = next((m for m in schedule.movies if m.name == name), None)
         if not movie:

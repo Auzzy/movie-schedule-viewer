@@ -194,7 +194,7 @@ def scan():
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
-                stored = db.store_showtimes(theater, schedule)
+                stored = db.store_showtimes(schedule)
                 db_showtime_updates(theater, date_range, schedule)
 
         return {"success": True}

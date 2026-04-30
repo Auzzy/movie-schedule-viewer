@@ -230,7 +230,8 @@ class Movie:
 
 
 class DaySchedule:
-    def __init__(self, day):
+    def __init__(self, theater, day):
+        self.theater = theater
         self.day = day
         self.movies = []
 
@@ -240,7 +241,7 @@ class DaySchedule:
         return new_movie
 
     def filter(self, filter_params):
-        new_schedule = DaySchedule(self.day)
+        new_schedule = DaySchedule(self.theater, self.day)
         for movie in self.movies:
             filtered_movie = movie.filter(filter_params)
             if filtered_movie:
@@ -264,6 +265,12 @@ class DaySchedule:
 class FullSchedule:
     @staticmethod
     def create(schedules):
+        theaters = {schedule.theater for schedule in schedules}
+        if len(theaters) > 1:
+            raise ValueError(f"A schedule must cover a single theater. Found {len(theaters)}: {', '.join(sorted(list(theaters)))")
+
+        theater = list(theaters)[0]
+
         movies = {movie.name: movie for movie in schedules[0].movies}
         days = [schedules[0].day]
         for schedule in schedules[1:]:
@@ -275,9 +282,10 @@ class FullSchedule:
                     movies[movie.name] = movie
 
         days = sorted(days)
-        return FullSchedule(days[0], days[-1], movies.values())
+        return FullSchedule(theater, days[0], days[-1], movies.values())
 
-    def __init__(self, start, end, movies):
+    def __init__(self, theater, start, end, movies):
+        sel.theater = theater
         self.start = start
         self.end = end
         self.movies = movies

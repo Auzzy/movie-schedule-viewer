@@ -31,16 +31,16 @@ def db_main(theater, date_range, deletion_report=True):
     if not schedule:
         return
 
-    stored = db.store_showtimes(theater, schedule)
-    deleted_showtimes = db_showtime_updates(theater, date_range, schedule)
+    stored = db.store_showtimes(schedule)
+    deleted_showtimes = db_showtime_updates(date_range, schedule)
     if deletion_report and deleted_showtimes:
         send_deletion_report(deleted_showtimes)
 
 def email_main(dates, theaters, sender, sender_name, receiver):
     theaters = theaters or os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
 
-    theaters_to_schedule = {theater: collect_schedule(theater, None, dates, Filter.empty(), True) for theater in theaters}
-    email_theater_schedules(theaters_to_schedule, dates, sender, sender_name, receiver)
+    schedules = [collect_schedule(theater, None, dates, Filter.empty(), True) for theater in theaters]
+    email_theater_schedules(schedules, dates, sender, sender_name, receiver)
 
 def cli_main(theater, filepath, date_range, name_only, date_only, filter_params):
     schedule_range = collect_schedule(theater, filepath, date_range, filter_params, False)

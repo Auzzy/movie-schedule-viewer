@@ -39,8 +39,10 @@ def _parse_format(attributes):
 
 def _load_schedule(showtimes_json, theater_info):
     tzname = theater_info["tzname"]
+    theater_name = theater_info["name"]
+
     day = date.fromisoformat(showtimes_json["viewModel"]["date"])
-    schedule = DaySchedule(day)
+    schedule = DaySchedule(theater_name, day)
     for movie_info in showtimes_json["viewModel"]["movies"]:
         if " " in movie_info["title"]:
             name, year_str = movie_info["title"].rsplit(maxsplit=1)
@@ -61,7 +63,7 @@ def _load_schedule(showtimes_json, theater_info):
                 attributes = [attr["name"].lower() for attr in showtimes_listing["amenities"]]
 
                 fmt = _parse_format([heading] + attributes) or heading
-                language = _parse_language(attributes, theater_info["name"])
+                language = _parse_language(attributes, theater_name)
                 is_open_caption = "open caption" in attributes
                 no_alist = "alternative content" in attributes or "no passes" in attributes
             elif showtimes_listing.get("isDolby", False):

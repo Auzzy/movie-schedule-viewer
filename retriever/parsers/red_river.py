@@ -48,7 +48,7 @@ def _load_schedules(page, runtime_dict, tzname):
 
             raw_start_time = screening_info.find("time").get_text(strip=True)
 
-            schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(showdate))
+            schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
             
             movie = next((m for m in schedule.movies if m.name == name), None)
             if not movie:
