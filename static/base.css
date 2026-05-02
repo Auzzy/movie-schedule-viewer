@@ -10,3 +10,30 @@
 #program-filter-toggles div:nth-child(even) {
   background-color: #f2f2f2;
 }
+
+.mybtn {
+    border: 1px solid transparent;
+    border-radius: 0.25em;
+    display: inline-block;
+    font-size: 1em;
+    font-weight: 400;
+    line-height: 1.5;
+    padding: 0.4em 0.65em;
+    text-align: center;
+    user-select: none;
+    vertical-align: middle;
+    
+    background-color: var(--fc-button-bg-color);
+    border-color: var(--fc-button-border-color);
+    color: var(--fc-button-text-color);
+}
+
+.mytextbox {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}

@@ -979,6 +979,21 @@
                 }
             }
 
+            function showWatchlistPopover() {
+                var watchlistRoot = document.getElementById("watchlist");
+                watchlistRoot.innerHTML = "";
+
+                Promise.all([getTheaterNames(), get("watchlist")])
+                    .then(([theaterNamesResult, watchlistResult]) => {
+                        Object.entries(watchlistResult).forEach(([title, theaterInfo]) => {
+                            addToWatchlistPopover(title, theaterNamesResult["names"], theaterInfo);
+                        });
+                    })
+                    .then(() => {
+                        document.getElementById("manage-watchlist-popover").showPopover();
+                    });
+            }
+
             document.addEventListener('DOMContentLoaded', function() {
                 {% if allow_editing is none %}
                 if (getCookie("client_id") === null) {
@@ -1045,6 +1060,10 @@
                     slotMinTime: '09:00:00',
                     listDaySideFormat: false,
                     customButtons: {
+                        watchlistButton: {
+                            text: 'Watchlist',
+                            click: showWatchlistPopover
+                        },
                         exportButton: {
                             text: 'Export ICS',
                             click: function() {
@@ -1072,7 +1091,7 @@
                         }
                     },
                     headerToolbar: {
-                        left: false,
+                        left: 'watchlistButton',
                         center: 'exportButton',
                         right: "clearButton"
                     },
@@ -1134,21 +1153,6 @@
                     showTheatersOnHover();
                 });
 
-                document.getElementById("manage-watchlist-button").addEventListener("click", function() {
-                    var watchlistRoot = document.getElementById("watchlist");
-                    watchlistRoot.innerHTML = "";
-
-                    Promise.all([getTheaterNames(), get("watchlist")])
-                        .then(([theaterNamesResult, watchlistResult]) => {
-                            Object.entries(watchlistResult).forEach(([title, theaterInfo]) => {
-                                addToWatchlistPopover(title, theaterNamesResult["names"], theaterInfo);
-                            });
-                        })
-                        .then(() => {
-                            document.getElementById("manage-watchlist-popover").showPopover();
-                        });
-                });
-
                 document.getElementById("add-to-watchlist-button").addEventListener("click", function() {
                     var theatersRoot = document.getElementById("add-to-watchlist-theaters");
                     theatersRoot.innerHTML = "";
@@ -1179,6 +1183,7 @@
                             post("watchlist/new", {title: title, theaters: theaters})
                                 .then(function(result) {
                                     addToWatchlistTextbox.value = "";
+                                    showWatchlistPopover();
                                 });
                         }
                     }
@@ -1192,12 +1197,16 @@
             <div id='listing-calendar'></div>
         </div>
         {% if allow_editing %}
-        <div popover id="manage-watchlist-popover" style="width: 15%; height: 40%; padding: 10px;">
-            <h2 style="margin-top: 5px;">Watchlist</h2>
-            <div id="watchlist"></div>
+        <div popover id="manage-watchlist-popover" style="width: 15%; height: 40%; padding: 10px; overflow: hidden">
+            <div style="text-align: center">
+                <button class="mybtn" type="button" id="add-to-watchlist-button" title="Add to Watchlist">+</button>
+            </div>
+            <hr />
+            <div id="watchlist" style="overflow: auto; height: 85%"></div>
         </div>
         <div popover id="add-to-watchlist-popover" style="width: 15%; height: 40%; padding: 10px;">
-            <input id="add-to-watchlist" type="text" placeholder="Enter release name..." />
+            <input class="mytextbox" id="add-to-watchlist" type="text" placeholder="Enter release name..." />
+            <hr />
             <div id="add-to-watchlist-theaters"></div>
         </div>
         {% endif %}
@@ -1237,10 +1246,6 @@
                     </div>
                     {% if allow_editing %}
                     <div style="flex: 17%; padding-right: 10px;">
-                        <div style="margin-bottom: 30px;">
-                            <button type="button" id="manage-watchlist-button" title="Manage Watchlist">Manage Watchlist</button>
-                            <button type="button" id="add-to-watchlist-button" title="Add to Watchlist">Add to Watchlist</button>
-                        </div>
                         <div style="height: 98vh; overflow-y: scroll; scrollbar-width: none">
                             <div id='schedule-calendar'></div>
                         </div>
