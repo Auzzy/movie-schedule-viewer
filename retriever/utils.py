@@ -1,5 +1,6 @@
+import calendar
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 def offset_timezone(tzname):
@@ -24,3 +25,28 @@ def group_dict_by(items, key):
 
 def group_obj_by(items, attr):
     return group_by(items, lambda item: getattr(item, attr))
+
+def date_ranges(date_list):
+    ranges = []
+    start, end = date_list[0], None
+    for nxt in date_list[1:]:
+        if (end and nxt == end + timedelta(days=1)) or nxt == start + timedelta(days=1):
+            end = nxt
+        else:
+            ranges.append((start, end))
+            start, end = nxt, None
+
+    return ranges + [(start, end)]
+
+def date_range_to_str(date_range):
+    if not date_range[1]:
+        return date_range[0].strftime("%b %d, %Y")
+
+    start, end = date_range
+    if start.year == end.year:
+        if start.month == end.month:
+            return f"{calendar.month_abbr[start.month]} {start.day} - {end.day}, {start.year}"
+        else:
+            return " - ".join(d.strftime('%b %d') for d in date_range) + f", {start.year}"
+    else:
+        return " - ".join(d.strftime('%b %d, %Y') for d in date_range)

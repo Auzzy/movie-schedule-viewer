@@ -14,7 +14,7 @@ from mailtrap import Address, Attachment, Mail, MailtrapClient
 from retriever import db
 from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
-from retriever.utils import group_dict_by, group_obj_by, offset_timezone
+from retriever.utils import date_ranges, date_range_to_str, group_dict_by, group_obj_by, offset_timezone
 
 
 def _build_attachment(content, filename, *, encoding="utf-8"):
@@ -138,8 +138,9 @@ def send_watchlist_notification(schedules):
         for title, showings_dict in watchlist_hits.items():
             lines.append(f"Showings added for {title}:")
             for theater, showings in showings_dict.items():
-                days_str = ", ".join(sorted({str(showing.start.date()) for showing in showings}))
-                lines.append(f"- {theater} - {days_str}")
+                showing_ranges = date_ranges(sorted({showing.start.date() for showing in showings}))
+                showing_dates_str = ", ".join(date_range_to_str(dr) for dr in showing_ranges)
+                lines.append(f"- {theater}: {showing_dates_str}")
 
         msg = "\n".join(lines)
         _send_email("Watchlist notification", msg, receiver=None)
