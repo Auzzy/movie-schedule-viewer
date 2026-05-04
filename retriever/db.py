@@ -372,17 +372,20 @@ def load_all_watchlists():
 
 
 def watchlist_mark_sent(theater_title_pairs):
-    sent_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-    theater_title_pairs_str = ", ".join(repr(p) for p in theater_title_pairs)
-
+    theater_title_pairs = [(theater, title.lower()) for theater, title in theater_title_pairs]
+    sent_pairs = [(row["theater"], row["title"]) for row in load_all_watchlists() if (row["theater"], row["title"].lower()) in theater_title_pairs]
+    
     db = _connect()
     cur = db.cursor()
+
+    sent_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+    sent_pairs_str = ", ".join(repr(p) for p in sent_pairs)
 
     cur.execute(f"""
         UPDATE watchlist
         SET sent_time = {_PH}
-        WHERE (theater, title) IN ({theater_title_pairs_str})""",
+        WHERE (theater, title) IN ({sent_pairs_str})""",
         (sent_time, ))
 
     db.commit()
