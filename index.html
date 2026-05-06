@@ -233,8 +233,7 @@
                 return toggleEl.querySelector("label input").checked;
             }
 
-            function createToggleSlider(showtimesCalendar, id, toggleFilterShowtimesFunc, adjustOtherToggles) {
-                var adjustOtherToggles = adjustOtherToggles === undefined ? true : adjustOtherToggles;
+            function createToggleSlider(showtimesCalendar, id, toggleFilterShowtimesFunc) {
                 var toggleEl = document.getElementById(id);
                 toggleEl.addEventListener("change", function (e) {
                     var moviesInfo = reloadMoviesInfo();
@@ -246,9 +245,6 @@
                                 event.remove();
                             }
                         });
-                        if (adjustOtherToggles) {
-                            adjustFilterChecked(showtimesCalendar);
-                        }
                     }
                 });
                 return toggleEl;
@@ -406,22 +402,6 @@
                 return toggleIsChecked("disable-filter-toggle") ? showtimes : applyRawShowtimeFilters(showtimes, visibility);
             }
 
-            function adjustFilterChecked(showtimesCalendar) {
-                var moviesInfo = reloadMoviesInfo();
-                var {formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
-
-                var filters = formatFilters.concat(languageFilters).concat(programFilters).concat(negativeFilters);
-                filters.forEach(({label, filterShowtimeF}) => {
-                    var matchingShowtimes = showtimesCalendar.getEvents().filter((e) => filterShowtimeF(e.extendedProps["showtime"]));
-                    var id = toggleId(label);
-                    var toggleEl = document.getElementById(id);
-                    if (toggleEl.checkVisibility()) {
-                        var checkboxEl = toggleEl.querySelector(".switch input");
-                        checkboxEl.checked = matchingShowtimes.length > 0;
-                    }
-                });
-            }
-
             function updateEnabledFilters() {
                 var moviesInfo = reloadMoviesInfo();
                 var {formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
@@ -438,7 +418,7 @@
                 });
             }
 
-            function createTogglesByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, moviesInfo, adjustOtherToggles) {
+            function createTogglesByType(parentId, filterDefinitions, showtimesCalendar, listingCalendar, moviesInfo) {
                 var parentEl = document.getElementById(parentId);
                 filterDefinitions.forEach(({label, filterShowtimeF, filterMovieF, init}) => {
                     var id = toggleId(label);
@@ -451,7 +431,7 @@
 
                         parentEl.appendChild(toggleEl);
 
-                        createToggleSlider(showtimesCalendar, id, filterShowtimeF, adjustOtherToggles);
+                        createToggleSlider(showtimesCalendar, id, filterShowtimeF);
                     }
 
                     var filteredMovies = Object.values(moviesInfo).filter((info) => filterMovieF(info));
@@ -489,7 +469,7 @@
                 if (toggleEl.innerHTML === "") {
                     toggleEl.innerHTML = createToggleElement(id, label, initialChecked).innerHTML;
                     toggleEl.addEventListener("change", applyDisableFiltersToggle);
-                    createToggleSlider(showtimesCalendar, id, filterShowtimeF, false);
+                    createToggleSlider(showtimesCalendar, id, filterShowtimeF);
                 }
             }
 
@@ -497,7 +477,7 @@
                 var moviesInfo = reloadMoviesInfo();
                 var {globalFilters, formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
 
-                createTogglesByType("global-filter-toggles", globalFilters, showtimesCalendar, listingCalendar, moviesInfo, false);
+                createTogglesByType("global-filter-toggles", globalFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("language-filter-toggles", languageFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("program-filter-toggles", programFilters, showtimesCalendar, listingCalendar, moviesInfo);
@@ -719,8 +699,6 @@
                 showtimesToEventSources(filteredShowtimes).forEach((eventSource) => {
                     showtimesCalendar.addEventSource(eventSource)
                 });
-
-                adjustFilterChecked(showtimesCalendar);
 
                 var minStartHour = Math.min(...showtimes.map((s) => dayjs(s["start_time"]).hour()));
                 var slotMinTime = minStartHour === Infinity ? "09:00:00" : `${minStartHour}:00:00`;
