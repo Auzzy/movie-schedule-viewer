@@ -161,8 +161,8 @@
 
             function addAllToCalendar(calendar, filterShowtimesFunc) {
                 var theater = selectedTheater();
-                var startTime = calendar.formatIso(calendar.view.activeStart);
-                var endTime = calendar.formatIso(calendar.view.activeEnd);
+                var startTime = calendar.formatIso(calendar.view.currentStart);
+                var endTime = calendar.formatIso(calendar.view.currentEnd);
                 return getShowtimes(theater, startTime, endTime)
                     .then(function(result) {
                         var displayInfo = reloadDisplayInfo();
@@ -849,8 +849,8 @@
                     button.style.transform = '';
                 }, 300);
 
-                var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeStart);
-                var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.activeEnd);
+                var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentStart);
+                var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentEnd);
                 resetMovieList();
                 clearCalendar(showtimesCalendar);
                 Promise.all([getShowtimes(theater, startStr, endStr), getVisibility(theater, startStr, endStr)])
@@ -1000,8 +1000,8 @@
                         right: 'dayGridMonth,timeGridWeek,timeGridDay'
                     },
                     datesSet: (dateInfo) => {
-                        var endStr = showtimesCalendar.formatIso(dateInfo.end);
-                        var startStr = showtimesCalendar.formatIso(dateInfo.start);
+                        var endStr = showtimesCalendar.formatIso(dateInfo.view.currentEnd);
+                        var startStr = showtimesCalendar.formatIso(dateInfo.view.currentStart);
                         var theater = selectedTheater();
 
                         resetMovieList();
@@ -1047,7 +1047,7 @@
                             click: function() {
                                 var body = {
                                     showtimes: scheduleCalendar.getEvents()
-                                        .filter((e) => scheduleCalendar.view.activeStart <= e.start && scheduleCalendar.view.activeEnd >= e.start)
+                                        .filter((e) => scheduleCalendar.view.currentStart <= e.start && scheduleCalendar.view.currentEnd >= e.start)
                                         .map((e) => e.extendedProps["showtime"])
                                 }
                                 post(`export-ics`, body).then((result) => {
@@ -1058,12 +1058,12 @@
                         clearButton: {
                             text: "Clear",
                             click: function(clickInfo) {
-                                var startTime = scheduleCalendar.formatIso(scheduleCalendar.view.activeStart);
-                                var endTime = scheduleCalendar.formatIso(scheduleCalendar.view.activeEnd);
+                                var startTime = scheduleCalendar.formatIso(scheduleCalendar.view.currentStart);
+                                var endTime = scheduleCalendar.formatIso(scheduleCalendar.view.currentEnd);
                                 post(`schedule/${startTime}/${endTime}/clear`);
 
                                 scheduleCalendar.getEvents()
-                                    .filter((e) => scheduleCalendar.view.activeStart <= e.start && scheduleCalendar.view.activeEnd >= e.start)
+                                    .filter((e) => scheduleCalendar.view.currentStart <= e.start && scheduleCalendar.view.currentEnd >= e.start)
                                     .forEach((e) => e.remove());
                             }
                         }
