@@ -128,12 +128,17 @@ def _program_adjustments(attributes, programs):
     _move(attributes, programs, "Double Feature")
     _move(attributes, programs, "New Release")
 
+    if "OnStage at the Coolidge" in programs:
+        attributes.append("Live Performance")
+
     if "Digital Restoration" in programs and "New Release" in programs:
         programs.remove("New Release")
 
 def _parse_format(raw_attributes):
     attributes = [a.lower() for a in raw_attributes]
-    if "70mm" in attributes:
+    if "live performance" in attributes:
+        return "Live Performance"
+    elif "70mm" in attributes:
         return "70mm"
     elif "35mm" in attributes:
         return "35mm"
