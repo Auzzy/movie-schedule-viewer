@@ -186,40 +186,24 @@ def request_theaters_last_updated():
 def request_watchlist(client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    watchlist = defaultdict(list)
-    for watchlist_entry in db.load_watchlist(client_id):
-        watchlist[watchlist_entry["title"]].append({
-            "theater": watchlist_entry["theater"],
-            "sent": watchlist_entry["sent_time"]
-        })
-
-    return dict(watchlist)
-
-
-@app.post("/watchlist/new")
-def add_new_watchlist_entry(title: Annotated[str, Body()], theaters: Annotated[list[str], Body()], client_id: Annotated[str | None, Cookie()] = None):
-    _check_write_permission(client_id)
-
-    theaters_response = []
-    for theater_name in theaters:
-        db.add_to_watchlist(title, theater_name, client_id=client_id)
-        theaters_response.append({"theater": theater_name, "sent": None})
-    return {title: theaters_response}
+    return {
+        "watchlist": [entry["title"] for entry in db.load_watchlist(client_id)]
+    }
 
 
 @app.post("/watchlist/add")
-def add_to_watchlist(title: Annotated[str, Body()], theater: Annotated[str, Body()], client_id: Annotated[str | None, Cookie()] = None):
+def add_to_watchlist(title: Annotated[str, Body(embed=True)], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.add_to_watchlist(title, theater, client_id=client_id)
+    db.add_to_watchlist(title, client_id=client_id)
     return {}
 
 
 @app.post("/watchlist/remove")
-def remove_from_watchlist(title: Annotated[str, Body()], theater: Annotated[str, Body()], client_id: Annotated[str | None, Cookie()] = None):
+def remove_from_watchlist(title: Annotated[str, Body()], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.remove_from_watchlist(title, theater, client_id=client_id)
+    db.remove_from_watchlist(title, client_id=client_id)
     return {}
 
 
@@ -230,7 +214,7 @@ def scan():
 
         days_to_scan = int(os.environ.get("MOVIE_VIEWER_SCAN_DAYS", 30))
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
-        schedules = []
+        stored_showings = []
         for theater in theaters_to_scan:
             tz = offset_timezone(db.get_theater(theater)["tzname"])
             today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -239,11 +223,10 @@ def scan():
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
-                schedules.append(schedule)
-                db.store_showtimes(schedule)
+                stored_showings.extend(db.store_showtimes(schedule))
                 db_showtime_updates(date_range, schedule)
 
-        send_watchlist_notification(schedules)
+        send_watchlist_notification(stored_showings)
 
         return {"success": True}
     except Exception as exc:

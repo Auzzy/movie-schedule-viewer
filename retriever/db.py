@@ -387,7 +387,7 @@ def load_watchlist(client_id):
 
     cur.execute(f"""
         SELECT *
-        FROM watchlist w
+        FROM simple_watchlist w
         WHERE w.client = {_PH}
         ORDER BY w.title""",
         query_params
@@ -402,57 +402,37 @@ def load_all_watchlists():
 
     cur.execute(f"""
         SELECT *
-        FROM watchlist w
+        FROM simple_watchlist w
         ORDER BY w.title
     """)
 
     return [dict(row) for row in cur.fetchall()]
 
 
-def watchlist_mark_sent(theater_title_pairs):
-    theater_title_pairs = [(theater, title.lower()) for theater, title in theater_title_pairs]
-    sent_pairs = [(row["theater"], row["title"]) for row in load_all_watchlists() if (row["theater"], row["title"].lower()) in theater_title_pairs]
-    
-    db = _connect()
-    cur = db.cursor()
 
-    sent_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-    sent_pairs_str = ", ".join(repr(p) for p in sent_pairs)
-
-    cur.execute(f"""
-        UPDATE watchlist
-        SET sent_time = {_PH}
-        WHERE (theater, title) IN ({sent_pairs_str})""",
-        (sent_time, ))
-
-    db.commit()
-    db.close()
-
-
-def add_to_watchlist(title, theater , *, client_id):
+def add_to_watchlist(title, *, client_id):
     db = _connect()
     cur = db.cursor()
 
     cur.execute(f"""
-        INSERT INTO watchlist(title, theater, client)
-        VALUES ({_PH}, {_PH}, {_PH})
-        ON CONFLICT(title, theater, client) DO NOTHING""",
-        (title, theater, client_id)
+        INSERT INTO simple_watchlist(title, client)
+        VALUES ({_PH}, {_PH})
+        ON CONFLICT(title, client) DO NOTHING""",
+        (title, client_id)
     )
 
     db.commit()
     db.close()
 
 
-def remove_from_watchlist(title, theater , *, client_id):
+def remove_from_watchlist(title, *, client_id):
     db = _connect()
     cur = db.cursor()
 
     cur.execute(f"""
-        DELETE FROM watchlist
-        WHERE title = {_PH} and theater = {_PH} and client = {_PH}""",
-        (title, theater, client_id)
+        DELETE FROM simple_watchlist
+        WHERE title = {_PH} and client = {_PH}""",
+        (title, client_id)
     )
 
     db.commit()
@@ -526,12 +506,10 @@ def _init_db():
         query TEXT
     )""")
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS watchlist (
+    cur.execute("""CREATE TABLE IF NOT EXISTS simple_watchlist (
         title TEXT NOT NULL,
-        theater TEXT NOT NULL,
-        sent_time TEXT,
         client TEXT NOT NULL,
-        PRIMARY KEY(title, theater, client)
+        PRIMARY KEY(title, client)
     )""")
 
     db.commit()

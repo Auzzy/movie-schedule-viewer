@@ -31,13 +31,13 @@ def db_main(theater, date_range, deletion_report=True, watchlist_notifications=T
     if not schedule:
         return
 
-    db.store_showtimes(schedule)
-    deleted_showtimes = db_showtime_updates(date_range, schedule)
-    if deletion_report and deleted_showtimes:
-        send_deletion_report(deleted_showtimes)
+    stored_showings = db.store_showtimes(schedule)
+    deleted_showings = db_showtime_updates(date_range, schedule)
+    if deletion_report and deleted_showings:
+        send_deletion_report(deleted_showings)
 
     if watchlist_notifications:
-        send_watchlist_notification([schedule])
+        send_watchlist_notification(stored_showings)
 
 def email_main(dates, theaters, sender, sender_name, receiver):
     theaters = theaters or os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")

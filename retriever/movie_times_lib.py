@@ -117,35 +117,28 @@ def db_showtime_updates(date_range, schedule):
     return deleted_showtimes
 
 
-def send_watchlist_notification(schedules):
-    watchlist = db.load_all_watchlists()
-    watchlist_by_theater = group_dict_by(watchlist, "theater")
+def send_watchlist_notification(stored_showings):
+    showdates_by_title = defaultdict(lambda: defaultdict(set))
+    for showing in stored_showings:
+        showdate = datetime.fromisoformat(showing["start_time"]).date()
+        showdates_by_title[showing["title"]][showing["theater"]].add(showdate)
 
-    mark_sent = []
-    watchlist_hits = defaultdict(lambda: defaultdict(list))
-    for schedule in schedules:
-        theater_watchlist = {entry["title"].lower(): entry["sent_time"] is None for entry in watchlist_by_theater.get(schedule.theater, {})}
-        for movie in schedule.movies:
-            should_send = theater_watchlist.get(movie.name.lower())
-            if not should_send:
-                continue
-
-            watchlist_hits[movie.name][schedule.theater].extend(movie.showings)
-            mark_sent.append((schedule.theater, movie.name))
-
-    if watchlist_hits:
+    watched = db.load_all_watchlists()
+    for client_id, entries in group_dict_by(watched, "client").items():
         lines = []
-        for title, showings_dict in watchlist_hits.items():
-            lines.append(f"Showings added for {title}:")
-            for theater, showings in showings_dict.items():
-                showing_ranges = date_ranges(sorted({showing.start.date() for showing in showings}))
-                showing_dates_str = ", ".join(date_range_to_str(dr) for dr in showing_ranges)
-                lines.append(f"- {theater}: {showing_dates_str}")
+        for entry in entries:
+            title = entry["title"]
+            showdates_by_theater = showdates_by_title.get(title, {})
+            if showdates_by_theater:
+                lines.append(f"Showings added for {title}:")
+                for theater, showdates in showdates_by_theater.items():
+                    showdate_ranges = date_ranges(showdates)
+                    showdates_str = ", ".join(date_range_to_str(dr) for dr in showdate_ranges)
+                    lines.append(f"- {theater}: {showdates_str}")
 
-        msg = "\n".join(lines)
-        _send_email("Watchlist notification", msg, receiver=None)
-
-        db.watchlist_mark_sent(mark_sent)
+        if lines:
+            msg = "\n".join(lines)
+            _send_email("Watchlist notification", msg, receiver=None)
 
 
 def _true_deletion_filter(deleted_showtimes, current_showtimes):

@@ -22,6 +22,7 @@
     text-align: center;
     user-select: none;
     vertical-align: middle;
+    cursor: pointer;
     
     background-color: var(--fc-button-bg-color);
     border-color: var(--fc-button-border-color);

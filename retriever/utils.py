@@ -27,9 +27,11 @@ def group_obj_by(items, attr):
     return group_by(items, lambda item: getattr(item, attr))
 
 def date_ranges(date_list):
+    sorted_date_list = sorted(date_list)
+
     ranges = []
-    start, end = date_list[0], None
-    for nxt in date_list[1:]:
+    start, end = sorted_date_list[0], None
+    for nxt in sorted_date_list[1:]:
         if (end and nxt == end + timedelta(days=1)) or nxt == start + timedelta(days=1):
             end = nxt
         else:

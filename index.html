@@ -906,7 +906,7 @@
                 });
             }
 
-            function addToWatchlistPopover(title, theaterNames, watchedTheaters) {
+            function addTitleToWatchlistPopover(title) {
                 var watchlistRoot = document.getElementById("watchlist");
 
                 var accordionButtonEl = Object.assign(document.createElement("button"), {className: "accordion", innerHTML: title});
@@ -923,26 +923,8 @@
                     panel.style.display = panel.style.display === "block" ? "none" : "block";
                 });
 
+                // To make use of the accordion control in the future, add content to this panel.
                 var panelEl = Object.assign(document.createElement("div"), {className: "panel"});
-                theaterNames.forEach((theater) => {
-                    var info = Array.from(watchedTheaters).find((entry) => entry["theater"] === theater);
-                    var checked = info !== undefined;
-                    var disabled = checked && info["sent"] !== null;
-
-                    var checkboxEl = Object.assign(document.createElement("input"), {type: "checkbox", value: theater, checked: checked, innerHTML: theater});
-                    checkboxEl.addEventListener("change", (e) => {
-                        var theater = e.target.value;
-                        var title = e.target.closest("[data-movie]").dataset.movie;
-                        var url = e.target.checked ? "watchlist/add" : "watchlist/remove";
-                        post(url, {title: title, theater: theater});
-                    });
-
-                    var checkboxLabelEl = document.createElement("label");
-                    checkboxLabelEl.appendChild(checkboxEl);
-                    checkboxLabelEl.appendChild(document.createTextNode(theater));
-                    panelEl.appendChild(checkboxLabelEl);
-                    panelEl.appendChild(document.createElement("br"));
-                });
 
                 var watchlistEntry = document.createElement("div");
                 watchlistEntry.dataset.movie = title;
@@ -961,10 +943,10 @@
                 var watchlistRoot = document.getElementById("watchlist");
                 watchlistRoot.innerHTML = "";
 
-                Promise.all([getTheaterNames(), get("watchlist")])
-                    .then(([theaterNamesResult, watchlistResult]) => {
-                        Object.entries(watchlistResult).forEach(([title, theaterInfo]) => {
-                            addToWatchlistPopover(title, theaterNamesResult["names"], theaterInfo);
+                get("watchlist")
+                    .then((watchlistResult) => {
+                        watchlistResult["watchlist"].forEach((title) => {
+                            addTitleToWatchlistPopover(title);
                         });
                     })
                     .then(() => {
@@ -1132,40 +1114,40 @@
                 });
 
                 document.getElementById("add-to-watchlist-button").addEventListener("click", function() {
-                    var theatersRoot = document.getElementById("add-to-watchlist-theaters");
-                    theatersRoot.innerHTML = "";
-
-                    getTheaterNames().then((result) => {
-                        result["names"].forEach((theater) => {
-                            var checkboxEl = Object.assign(document.createElement("input"), {type: "checkbox", value: theater, innerHTML: theater});
-                            var checkboxLabelEl = document.createElement("label");
-                            checkboxLabelEl.appendChild(checkboxEl);
-                            checkboxLabelEl.appendChild(document.createTextNode(theater));
-                            theatersRoot.appendChild(checkboxLabelEl);
-                            theatersRoot.appendChild(document.createElement("br"));
+                    var watchlistInputEl = document.getElementById("watchlist-input");
+                    var title = watchlistInputEl.value;
+                    post("watchlist/add", {title: title})
+                        .then(function(result) {
+                            watchlistInputEl.value = "";
+                            addTitleToWatchlistPopover(title);
                         });
-                    })
-                    .then(() => {
-                        document.getElementById("add-to-watchlist-popover").showPopover();
+                });
+                /*
+                var watchlistInputEl = document.getElementById("watchlist-input");
+                watchlistInputEl.addEventListener("keydown", function(e) {
+                    if (e.code === "Enter") {
+                        var title = watchlistInputEl.value;
+                        post("watchlist/add", {title: title})
+                            .then(function(result) {
+                                watchlistInputEl.value = "";
+                                addTitleToWatchlistPopover(title);
+                            });
+                    }
+                });
+                */
+
+                var watchlistInputEl = document.getElementById("watchlist-input");
+                watchlistInputEl.addEventListener("keyup", function () {
+                    var filter = watchlistInputEl.value.toLowerCase();
+                    Array.from(document.getElementById("watchlist").children).forEach((entry) => {
+                        if (filter === "" || entry.dataset.movie.toLowerCase().includes(filter)) {
+                            entry.style.display = "";
+                        } else {
+                            entry.style.display = "none";
+                        }
                     });
                 });
 
-                var addToWatchlistTextbox = document.getElementById("add-to-watchlist");
-                addToWatchlistTextbox.addEventListener("keydown", function(e) {
-                    if (e.code === "Enter") {
-                        var title = addToWatchlistTextbox.value;
-                        var theaters = Array.from(document.getElementById("add-to-watchlist-theaters").getElementsByTagName("input"))
-                            .filter((el) => el.checked)
-                            .map((el) => el.value);
-                        if (theaters.length > 0) {
-                            post("watchlist/new", {title: title, theaters: theaters})
-                                .then(function(result) {
-                                    addToWatchlistTextbox.value = "";
-                                    showWatchlistPopover();
-                                });
-                        }
-                    }
-                });
             });
         </script>
     </head>
@@ -1177,15 +1159,11 @@
         {% if allow_editing %}
         <div popover id="manage-watchlist-popover" style="width: 15%; height: 40%; padding: 10px; overflow: hidden">
             <div style="text-align: center">
+                <input class="mytextbox" id="watchlist-input" type="text" placeholder="Enter release name..." style="width: 85%" />
                 <button class="mybtn" type="button" id="add-to-watchlist-button" title="Add to Watchlist">+</button>
             </div>
             <hr />
             <div id="watchlist" style="overflow: auto; height: 85%"></div>
-        </div>
-        <div popover id="add-to-watchlist-popover" style="width: 15%; height: 40%; padding: 10px;">
-            <input class="mytextbox" id="add-to-watchlist" type="text" placeholder="Enter release name..." />
-            <hr />
-            <div id="add-to-watchlist-theaters"></div>
         </div>
         {% endif %}
         <div style="display: flex;">
