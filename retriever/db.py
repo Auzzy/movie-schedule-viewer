@@ -81,11 +81,15 @@ def store_showtimes(schedule, *, clean=True):
     db = _connect()
     cur = db.cursor()
 
+    key_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "start_time")
+    key_field_names_str = ", ".join(key_field_names)
+    field_names = key_field_names + ("end_time", "programs", "create_time")
+    field_names_str = ", ".join(field_names)
+
+    recheck = []
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     for movie in schedule.movies:
         for showing in movie.showings:
-            field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time", "end_time", "create_time")
-            field_names_str = ", ".join(field_names)
             field_values = (
                 schedule.theater,
                 movie.name,
@@ -93,20 +97,54 @@ def store_showtimes(schedule, *, clean=True):
                 int(showing.is_open_caption),
                 int(bool(showing.no_alist)),
                 showing.language,
-                json.dumps(sorted(showing.programs)),
                 showing.start.isoformat(),
                 showing.end.isoformat(),
+                json.dumps(sorted(showing.programs)),
                 create_time
             )
 
             cur.execute(f"""
                 INSERT INTO showtimes({field_names_str})
                 VALUES ({', '.join([_PH] * len(field_names))})
-                ON CONFLICT(theater, title, format, is_open_caption, no_alist, language, start_time) DO NOTHING""",
+                ON CONFLICT({key_field_names_str}) DO NOTHING
+                RETURNING *""",
                 field_values
             )
 
+            if not cur.fetchone():
+                recheck.append(dict(zip(field_names, field_values)))
+
     db.commit()
+
+    ### Update showtimes with missing runtimes ###
+    # Movies entered into the DB with no runtime have their end time set to their start time. When
+    # inserting new showtimes into the DB, end time isn't considered for identification, so even
+    # when it's present, it's considered a conflict, and thus omitted.
+    # To update it, we capture the inserts that don't do anything, check if they identify rows
+    # without a runtime, then update their end_time as appropriate.
+    # As this does not change create_time, they're omitted from the returned set of stored rows.
+    cur.execute(f"""
+        SELECT {key_field_names_str}
+        FROM showtimes s
+        WHERE s.create_time < {_PH} and s.start_time = s.end_time""",
+        (create_time, )
+    )
+
+    showtimes_without_end = [dict(row) for row in cur.fetchall()]
+    if showtimes_without_end:
+        for showtime_dict in recheck:
+            key_showtime_dict = {key: value for key, value in showtime_dict.items() if key in key_field_names}
+            if key_showtime_dict in showtimes_without_end:
+                update_field_where_str = " and ".join([f"{field} = {_PH}" for field in key_field_names])
+                update_field_values = (showtime_dict["end_time"], ) + tuple([showtime_dict[field] for field in key_field_names])
+
+                cur.execute(f"""
+                    UPDATE showtimes
+                    SET end_time = {_PH}
+                    WHERE {update_field_where_str}""",
+                    update_field_values)
+
+        db.commit()
 
     cur.execute(f"""SELECT * FROM showtimes s WHERE s.create_time >= {_PH} ORDER BY s.title""", (create_time, ))
 
