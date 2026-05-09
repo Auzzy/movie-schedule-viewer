@@ -131,6 +131,9 @@ def _program_adjustments(attributes, programs):
     if "OnStage at the Coolidge" in programs:
         attributes.append("Live Performance")
 
+    if "Coolidge Education" in programs:
+        attributes.append("Lecture")
+
     if "Digital Restoration" in programs and "New Release" in programs:
         programs.remove("New Release")
 
@@ -138,6 +141,8 @@ def _parse_format(raw_attributes):
     attributes = [a.lower() for a in raw_attributes]
     if "live performance" in attributes:
         return "Live Performance"
+    elif "lecture" in attributes:
+        return "Lecture"
     elif "70mm" in attributes:
         return "70mm"
     elif "35mm" in attributes:
