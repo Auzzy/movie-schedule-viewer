@@ -22,6 +22,8 @@ def _get_attributes_and_programs(movie_info):
         match attr_el.get_text(strip=True):
             case "CP": programs.append("Community Program")
             case "REP": programs.append("Repertory Screening")
+            case "MM": programs.append("Member Monday")
+            case "SE": programs.append("Special Event")
             case "OCAP": attributes.append("Open Caption")
             case other: programs.append(other)
     
