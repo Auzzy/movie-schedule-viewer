@@ -31,6 +31,8 @@ def _parse_format(movie_info):
             return "35mm"
         else:
             return fmt
+    elif movie_info.find(class_="harvard-book-store-presents") is not None:
+        return "Live Performance"
     else:
         return "Standard"
 
