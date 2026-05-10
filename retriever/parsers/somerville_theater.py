@@ -1,45 +1,61 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
+from xml.etree import ElementTree
 
 import requests
+from bs4 import BeautifulSoup
 
-from retriever.schedule import DaySchedule, FullSchedule
+from retriever.schedule import DaySchedule
 
 THEATER_NAME = "Somerville Theater"
-SHOWTIMES_URL = "https://api.us.veezi.com/v1/websession"
-SHOWTIMES_HEADERS = {"veeziaccesstoken": "qvn2v2bvnf11k126ehz14zcxwr"}
+SHOWTIMES_URL = "https://www.somervilletheatre.com/wp-admin/admin-ajax.php?action=tapos_feed"
+SHOWTIMES_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'}
+
 
 def _retrieve_page():
-    return requests.get(SHOWTIMES_URL, headers=SHOWTIMES_HEADERS).json()
+    response_text = requests.get(SHOWTIMES_URL, headers=SHOWTIMES_HEADERS).text
+    return response_text if "?xml" in response_text.strip().splitlines()[0] else None
 
-def _load_schedules(schedule_json, tzname):
+def _child(root, name, *, parse_none=True):
+    tag = root.find(name)
+    return tag.text if tag is not None and (not parse_none or tag != "None") else None
+
+def _load_schedules(schedule_xml, tzname):
+    films = {}
+    film_section = schedule_xml.find("Films")
+    for film in film_section.findall("Film"):
+        film_info = {
+            "title": _child(film, "FilmTitle", parse_none=False),
+            "runtime": _child(film, "RunningTime"),
+            "is_reperatory": _child(film, "Genre").lower() == "reperatory"
+        }
+        films[_child(film, "Code")] = film_info
+
     schedules = {}
-    for showing in schedule_json:
-        name = showing["Title"]
-        start_dt = datetime.fromisoformat(showing["FeatureStartTime"])
+    performance_section = schedule_xml.find("Performances")
+    for perf in performance_section.findall("Performance"):
+        showdate = date.fromisoformat(_child(perf, "PerformDate"))
 
-        showdate = start_dt.date()
         schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
 
+        film_code = _child(perf, "FilmCode")
+        movie_info = films.get(film_code)
+        if not movie_info:
+            raise ValueError("Found performance that referenced non-existing film code: {file_code}.")
+
+        name = movie_info["title"]
         movie = next((m for m in schedule.movies if m.name == name), None)
         if not movie:
-            runtime = int((datetime.fromisoformat(showing["FeatureEndTime"]) - start_dt).seconds / 60)
+            runtime = movie_info["runtime"]
             movie = schedule.add_raw_movie(name, runtime)
 
-        raw_formats = showing.get("Attributes")
-        if raw_formats:
-            match raw_formats:
-                case ["0000000013"]: fmt = "35mm"
-                case ["0000000015"]: fmt = "4k"
-                case _: fmt = raw_formats[0]
-        else:
-            fmt = "Standard"
-
-        programs = [showing["PriceCardName"]]
-        if programs[0] in ("Repertory Evening", "Matinee-SMV", "Evening-SMV", "$7 Tuesdays"):
-            # You'd think "Reperatory Evening" would mean just that. But it's sometimes applied to new releases.
-            programs = []
-
+        start_dt = datetime.strptime(_child(perf, "StartTime"), "%H:%M:%S")
+        fmt = _child(perf, "PerfFlags") or "Standard"
         is_open_caption = False
+
+        programs = ["Reperatory"] if movie_info["is_reperatory"] else []
+        perf_cat = _child(perf, "PerfCat")
+        if perf_cat and perf_cat != "Standard":
+            programs.append(perf_cat)
 
         movie.add_raw_showings([start_dt], showdate, tzname, fmt, is_open_caption, programs=programs)
 
@@ -47,6 +63,15 @@ def _load_schedules(schedule_json, tzname):
 
 def load_schedules_by_day(theater_info, date_range, quiet=False):
     schedules_by_day = []
-    showtimes_json = _retrieve_page()
-    schedules_by_day = _load_schedules(showtimes_json, theater_info["tzname"])
+    showtimes_xml_text = _retrieve_page()
+    if not showtimes_xml_text:
+        return []
+
+    try:
+        showtimes_xml = ElementTree.fromstring(showtimes_xml_text)
+    except ElementTree.ParseError as exc:
+        exc.msg += f"\nRAW TEXT: {showtimes_xml_text}"
+        raise exc
+
+    schedules_by_day = _load_schedules(showtimes_xml, theater_info["tzname"])
     return [s for s in schedules_by_day if date_range[0] <= s.day <= date_range[1]]
