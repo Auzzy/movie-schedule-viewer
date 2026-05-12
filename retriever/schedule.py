@@ -162,8 +162,9 @@ class Showing:
         lang_str = f" ({self.language})" if self.language not in ("UNKNOWN", "English") else ""
         open_cap_str = " (Open caption)" if self.is_open_caption else ""
         no_alist_str = " (No A-List?)" if self.no_alist else ""
+        programs_str = f" ({', '.join(self.programs)})" if self.programs else ""
 
-        return f"{date_str}{dur_str} ({self.fmt}){lang_str}{open_cap_str}{no_alist_str}"
+        return f"{date_str}{dur_str} ({self.fmt}){lang_str}{open_cap_str}{no_alist_str}{programs_str}"
 
 
 class Movie:
