@@ -35,7 +35,6 @@ def serialize_showing(theater, title, showing):
         "title": title,
         "format": showing.fmt,
         "is_open_caption": bool(showing.is_open_caption),
-        "no_alist": bool(showing.no_alist),
         "language": showing.language,
         "programs": sorted(showing.programs),
         "start_time": showing.start.isoformat(),
@@ -50,7 +49,6 @@ def _read_showtimes_query(raw_rows, *, clean=True):
     for row in raw_rows:
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
-        row_dict["no_alist"] = row["no_alist"] == 1
         row_dict["programs"] = json.loads(row["programs"] or "[]")
         if clean:
             del row_dict["create_time"]
@@ -81,7 +79,7 @@ def store_showtimes(schedule, *, clean=True):
     db = _connect()
     cur = db.cursor()
 
-    key_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "start_time")
+    key_field_names = ("theater", "title", "format", "is_open_caption", "language", "start_time")
     key_field_names_str = ", ".join(key_field_names)
     field_names = key_field_names + ("end_time", "programs", "create_time")
     field_names_str = ", ".join(field_names)
@@ -95,7 +93,6 @@ def store_showtimes(schedule, *, clean=True):
                 movie.name,
                 showing.fmt,
                 int(showing.is_open_caption),
-                int(bool(showing.no_alist)),
                 showing.language,
                 showing.start.isoformat(),
                 showing.end.isoformat(),
@@ -156,7 +153,7 @@ def delete_showtimes(showtimes_dicts):
 
     delete_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     for showtime in showtimes_dicts:
-        delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time")
+        delete_field_names = ("theater", "title", "format", "is_open_caption", "language", "programs", "start_time")
         delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
         delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
         delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
@@ -191,7 +188,6 @@ def load_deleted_showtimes(first_delete_time, last_delete_time, *, clean=True):
     for row in cur.fetchall():
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
-        row_dict["no_alist"] = row["no_alist"] == 1
         row_dict["programs"] = json.loads(row["programs"] or "[]")
         if clean:
             del row_dict["delete_time"]
@@ -248,7 +244,6 @@ def load_schedule(first_time, last_time, *, client_id):
     for row in cur.fetchall():
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
-        row_dict["no_alist"] = row["no_alist"] == 1
         row_dict["programs"] = json.loads(row["programs"] or "[]")
         rows.append(row_dict)
     return rows
@@ -258,14 +253,13 @@ def add_to_schedule(showtime, *, client_id):
     cur = db.cursor()
 
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "programs", "start_time", "end_time", "create_time", "client")
+    field_names = ("theater", "title", "format", "is_open_caption", "language", "programs", "start_time", "end_time", "create_time", "client")
     field_names_str = ", ".join(field_names)
     field_values = (
         showtime["theater"],
         showtime["title"],
         showtime["format"],
         int(showtime["is_open_caption"]),
-        int(bool(showtime["no_alist"])),
         showtime["language"],
         json.dumps(sorted(showtime["programs"])),
         showtime["start_time"],
@@ -277,7 +271,7 @@ def add_to_schedule(showtime, *, client_id):
     cur.execute(f"""
         INSERT INTO schedule({field_names_str})
         VALUES ({', '.join([_PH] * len(field_names))})
-        ON CONFLICT(theater, title, format, is_open_caption, no_alist, language, start_time, client) DO NOTHING""",
+        ON CONFLICT(theater, title, format, is_open_caption, language, start_time, client) DO NOTHING""",
         field_values
     )
             
@@ -288,7 +282,7 @@ def remove_from_schedule(showtime, *, client_id):
     db = _connect()
     cur = db.cursor()
 
-    delete_field_names = ("theater", "title", "format", "is_open_caption", "no_alist", "language", "start_time")
+    delete_field_names = ("theater", "title", "format", "is_open_caption", "language", "start_time")
     delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
     delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
     delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
@@ -448,13 +442,12 @@ def _init_db():
         title TEXT NOT NULL,
         format TEXT,
         is_open_caption INT NOT NULL,
-        no_alist INT NOT NULL,
         language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         create_time TEXT NOT NULL,
-        PRIMARY KEY(theater, title, format, is_open_caption, no_alist, language, start_time)
+        PRIMARY KEY(theater, title, format, is_open_caption, language, start_time)
     )""")
 
     # I could do this as a soft delete from showtimes. But this allows
@@ -465,7 +458,6 @@ def _init_db():
         title TEXT NOT NULL,
         format TEXT,
         is_open_caption INT NOT NULL,
-        no_alist INT NOT NULL,
         language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
@@ -485,14 +477,13 @@ def _init_db():
         title TEXT NOT NULL,
         format TEXT,
         is_open_caption INT NOT NULL,
-        no_alist INT NOT NULL,
         language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         create_time TEXT NOT NULL,
         client TEXT NOT NULL,
-        PRIMARY KEY(theater, title, format, is_open_caption, no_alist, language, start_time, client)
+        PRIMARY KEY(theater, title, format, is_open_caption, language, start_time, client)
     )""")
 
     cur.execute("""CREATE TABLE IF NOT EXISTS theater (

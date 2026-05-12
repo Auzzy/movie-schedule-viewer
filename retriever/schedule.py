@@ -133,18 +133,17 @@ class Showing:
         return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod
-    def create(raw_start_time, runtime_min, day, tzname, fmt, is_open_caption, no_alist, language=None, programs=[]):
+    def create(raw_start_time, runtime_min, day, tzname, fmt, is_open_caption, language=None, programs=[]):
         start_time = Showing._parse_showtime(raw_start_time, tzname)
         start = datetime.combine(day, start_time)
         end = start + timedelta(minutes=runtime_min)
         lang = language or "UNKNOWN"
-        return Showing(fmt, lang, is_open_caption, no_alist, programs, start, end)
+        return Showing(fmt, lang, is_open_caption, programs, start, end)
 
-    def __init__(self, fmt, language, is_open_caption, no_alist, programs, start, end):
+    def __init__(self, fmt, language, is_open_caption, programs, start, end):
         self.fmt = fmt
         self.language = language
         self.is_open_caption = is_open_caption
-        self.no_alist = no_alist
         self.programs = programs
         self.start = start
         self.end = end
@@ -161,10 +160,9 @@ class Showing:
 
         lang_str = f" ({self.language})" if self.language not in ("UNKNOWN", "English") else ""
         open_cap_str = " (Open caption)" if self.is_open_caption else ""
-        no_alist_str = " (No A-List?)" if self.no_alist else ""
         programs_str = f" ({', '.join(self.programs)})" if self.programs else ""
 
-        return f"{date_str}{dur_str} ({self.fmt}){lang_str}{open_cap_str}{no_alist_str}{programs_str}"
+        return f"{date_str}{dur_str} ({self.fmt}){lang_str}{open_cap_str}{programs_str}"
 
 
 class Movie:
@@ -185,9 +183,9 @@ class Movie:
         self.runtime_min = runtime_min
         self.showings = []
 
-    def add_raw_showings(self, raw_times, day, tzname, fmt, is_open_caption, no_alist=None, language=None, programs=[]):
+    def add_raw_showings(self, raw_times, day, tzname, fmt, is_open_caption, language=None, programs=[]):
         for raw_time in raw_times:
-            self.showings.append(Showing.create(raw_time, self.runtime_min, day, tzname, fmt, is_open_caption, no_alist, language, programs))
+            self.showings.append(Showing.create(raw_time, self.runtime_min, day, tzname, fmt, is_open_caption, language, programs))
 
     @property
     def first(self):

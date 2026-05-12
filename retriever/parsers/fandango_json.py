@@ -55,8 +55,6 @@ def _load_schedule(showtimes_json, theater_info):
 
         movie = schedule.add_raw_movie(name, runtime)
 
-
-        # showtimes_sections = itertools.chain([(fmt["format"], ag) for fmt in movie_info["variants"] for ag in fmt["amenityGroups"]])
         showtimes_sections = itertools.chain([(fmt["filmFormatHeader"], ag) for fmt in movie_info["variants"] for ag in fmt["amenityGroups"]])
         for heading, showtimes_listing in showtimes_sections:
             raw_amenities = showtimes_listing.get("amenities", [])
@@ -67,19 +65,18 @@ def _load_schedule(showtimes_json, theater_info):
                 fmt = _parse_format([heading] + attributes) or heading
                 language = _parse_language(attributes, theater_name)
                 is_open_caption = "open caption" in attributes
+
                 if "sensory friendly" in attributes or "sensory friendly film" in attributes:
                     programs.append("Sensory Friendly")
-                    no_alist = False
-                else:
-                    no_alist = "no passes" in attributes or "no trailers" in attributes
+                elif theater_name.startswith("AMC") and ("no passes" in attributes or "no trailers" in attributes):
+                    programs.append("No A-List")
             elif showtimes_listing.get("isDolby", False):
                 fmt = "Dolby"
                 language = None
                 is_open_caption = False
-                no_alist = False
 
             raw_showtimes = [showtime["date"] for showtime in showtimes_listing["showtimes"]]
-            movie.add_raw_showings(raw_showtimes, day, tzname, fmt, is_open_caption, no_alist, language, programs)
+            movie.add_raw_showings(raw_showtimes, day, tzname, fmt, is_open_caption, language, programs)
 
     return schedule
 
@@ -150,6 +147,6 @@ def search(query):
     return results
 
 def get_tzname(theater_code):
-    showtime_response = _retrieve_showtimes(theater_code, date.today())
+    showtime_response = _retrieve_showtimes(theater_code, date.today() + timedelta(days=1))
     theater_info = showtime_response["viewModel"]["theater"]["details"]
     return _get_timezone(**theater_info["geo"])

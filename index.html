@@ -38,8 +38,7 @@
             ];
 
             var NEGATIVE_FILTER_FIELDS = {
-                "Is Open Caption": "is_open_caption",
-                "No A-List": "no_alist"
+                "Is Open Caption": "is_open_caption"
             };
 
             var GLOBAL_FILTER_FUNCS = {
@@ -288,7 +287,6 @@
                     var programs = el.dataset.programs.split(",");
                     var display = {visible: el.dataset.visible === "true", background_color: el.dataset.bgColor, text_color: el.dataset.textColor};
                     var details = {
-                        noAList: el.dataset.noAList,
                         isOpenCaption: el.dataset.isOpenCaption,
                         first: el.dataset.first,
                         last: el.dataset.last,
@@ -590,7 +588,6 @@
 
                 var entry = document.createElement('div');
                 entry.dataset.title = details["title"];
-                entry.dataset.noAList = details["noAList"];
                 entry.dataset.isOpenCaption = details["isOpenCaption"];
                 entry.dataset.formats = details["formats"].toSorted().join(",");
                 details["formats"].forEach((fmtLabel) => {
@@ -667,7 +664,6 @@
                             formats: Array.from(new Set(titleShowtimes.map((s) => s["format"]))),
                             languages: Array.from(new Set(titleShowtimes.map((s) => s["language"]))),
                             programs: Array.from(new Set(titleShowtimes.map((s) => s["programs"]).flat())),
-                            noAList: titleShowtimes.some((s) => s["no_alist"]),
                             isOpenCaption: titleShowtimes.some((s) => s["is_open_caption"]),
                             first: sortedTimes[0],
                             last: sortedTimes.at(-1),
@@ -809,9 +805,6 @@
                 var rawFormatStr = showtimeDetails["format"];
                 if (showtimeDetails["is_open_caption"]) {
                     rawFormatStr += ", Open Caption";
-                }
-                if (showtimeDetails["no_alist"]) {
-                    rawFormatStr += ", No A-List";
                 }
                 var formatStr = `<p>${rawFormatStr}</p>`;
 
