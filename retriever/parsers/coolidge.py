@@ -164,7 +164,7 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
         movie = schedule.add_raw_movie(name, runtime_str)
 
         attrib_chip_parent = movie_info.find(class_="view-film-event-type-link")
-        base_attributes = [a.get_text(strip=True) for a in attrib_chip_parent.find_all(class_="film-program__title")] if attrib_chip_parent else []
+        attributes = [a.get_text(strip=True) for a in attrib_chip_parent.find_all(class_="film-program__title")] if attrib_chip_parent else []
 
         programs = []
         program_chip_parent = movie_info.find(class_="view-program-taxonomy-link")
@@ -174,22 +174,23 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
                 chip_label = anchor.find(class_="film-program__title").get_text(strip=True)
                 programs.append(signature_programs_dict.get(path, chip_label))
 
-        _program_adjustments(base_attributes, programs)
-        _update_projection_specifics_cache(base_attributes, movie_info, name, tzname)
-        if not base_attributes:
-            base_attributes.append("Standard")
+        _program_adjustments(attributes, programs)
+        _update_projection_specifics_cache(attributes, movie_info, name, tzname)
+        if not attributes:
+            attributes.append("Standard")
 
         for showtime_el in movie_info.find_all(class_="showtime-ticket__time"):
             raw_showtime = showtime_el.get_text(strip=True)
-            attributes = base_attributes + (["Open Caption"] if raw_showtime in open_captions_dict.get(name, {}).get(day, []) else [])
+            # attributes = base_attributes + (["Open Caption"] if raw_showtime in open_captions_dict.get(name, {}).get(day, []) else [])
+            if raw_showtime in open_captions_dict.get(name, {}).get(day, []):
+                programs.append("Open Caption")
 
             _apply_projection_specifics(name, raw_showtime, day, tzname, attributes)
 
             fmt = _parse_format(attributes)
             language = None
-            is_open_caption = raw_showtime in open_captions_dict.get(name, {}).get(day, [])
 
-            movie.add_raw_showings([raw_showtime], day, tzname, fmt, is_open_caption, language, set(programs))
+            movie.add_raw_showings([raw_showtime], day, tzname, fmt, language, set(programs))
 
     return schedule
 

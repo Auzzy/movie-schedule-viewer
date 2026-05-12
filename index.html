@@ -37,10 +37,6 @@
                 {text: "black", bg: "thistle"},
             ];
 
-            var NEGATIVE_FILTER_FIELDS = {
-                "Is Open Caption": "is_open_caption"
-            };
-
             var GLOBAL_FILTER_FUNCS = {
                 "Show Past": {
                     showtimeF: (s) => dayjs(s["start_time"]).isBefore(dayjs().startOf("day")),
@@ -287,7 +283,6 @@
                     var programs = el.dataset.programs.split(",");
                     var display = {visible: el.dataset.visible === "true", background_color: el.dataset.bgColor, text_color: el.dataset.textColor};
                     var details = {
-                        isOpenCaption: el.dataset.isOpenCaption,
                         first: el.dataset.first,
                         last: el.dataset.last,
                         formats,
@@ -345,14 +340,6 @@
                     };
                 });
 
-                var negativeFilters = Object.entries(NEGATIVE_FILTER_FIELDS).map(([label, field]) => {
-                    return {
-                        label: label,
-                        filterShowtimeF: (s) => s[field],
-                        filterMovieF: (mi) => mi["details"][strToDatasetId(label)] === "true"
-                    };
-                });
-
                 var globalFilters = Object.entries(GLOBAL_FILTER_FUNCS).map(([label, {showtimeF, movieF, init}]) => {
                     return {
                         label: label,
@@ -362,13 +349,10 @@
                     };
                 });
 
-                return {globalFilters, formatFilters, languageFilters, programFilters, negativeFilters};
+                return {globalFilters, formatFilters, languageFilters, programFilters};
             }
 
             function applyRawShowtimeFilters(showtimes, visibility) {
-                var negativeFilters = Array.from(document.getElementById("negative-filter-toggles").children)
-                    .filter((el) => !toggleIsChecked(el.id))
-                    .map((el) => NEGATIVE_FILTER_FIELDS[el.dataset.label]);
                 var enabledFormats = Array.from(document.getElementById("format-filter-toggles").children)
                     .filter((el) => toggleIsChecked(el.id))
                     .map((el) => el.dataset.label);
@@ -388,7 +372,6 @@
                     });
                 return showtimes.filter((showtime) => {
                     return visibility[showtime["title"]]
-                        && !negativeFilters.some((field) => showtime[field])
                         && enabledFormats.includes(showtime["format"])
                         && enabledLanguages.includes(showtime["language"])
                         && (!showtime["programs"]?.length || showtime["programs"].some((p) => enabledPrograms.includes(p)))
@@ -402,9 +385,9 @@
 
             function updateEnabledFilters() {
                 var moviesInfo = reloadMoviesInfo();
-                var {formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
+                var {formatFilters, languageFilters, programFilters} = getFilters(moviesInfo);
 
-                var filters = formatFilters.concat(languageFilters).concat(programFilters).concat(negativeFilters);
+                var filters = formatFilters.concat(languageFilters).concat(programFilters);
                 filters.forEach(({label, filterMovieF}) => {
                     var switchEl = document.getElementById(toggleId(label)).querySelector(".switch");
                     var filteredMovies = Object.values(moviesInfo).filter((info) => filterMovieF(info) && info["display"]["visible"])
@@ -473,13 +456,12 @@
 
             function createFilters(showtimesCalendar, listingCalendar) {
                 var moviesInfo = reloadMoviesInfo();
-                var {globalFilters, formatFilters, languageFilters, programFilters, negativeFilters} = getFilters(moviesInfo);
+                var {globalFilters, formatFilters, languageFilters, programFilters} = getFilters(moviesInfo);
 
                 createTogglesByType("global-filter-toggles", globalFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("language-filter-toggles", languageFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("program-filter-toggles", programFilters, showtimesCalendar, listingCalendar, moviesInfo);
-                createTogglesByType("negative-filter-toggles", negativeFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createDisableFiltersToggle(showtimesCalendar);
             }
 
@@ -588,7 +570,6 @@
 
                 var entry = document.createElement('div');
                 entry.dataset.title = details["title"];
-                entry.dataset.isOpenCaption = details["isOpenCaption"];
                 entry.dataset.formats = details["formats"].toSorted().join(",");
                 details["formats"].forEach((fmtLabel) => {
                     var datasetFmt = strToDatasetId(fmtLabel);
@@ -664,7 +645,6 @@
                             formats: Array.from(new Set(titleShowtimes.map((s) => s["format"]))),
                             languages: Array.from(new Set(titleShowtimes.map((s) => s["language"]))),
                             programs: Array.from(new Set(titleShowtimes.map((s) => s["programs"]).flat())),
-                            isOpenCaption: titleShowtimes.some((s) => s["is_open_caption"]),
                             first: sortedTimes[0],
                             last: sortedTimes.at(-1),
                             display: {
@@ -803,9 +783,6 @@
                 timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
 
                 var rawFormatStr = showtimeDetails["format"];
-                if (showtimeDetails["is_open_caption"]) {
-                    rawFormatStr += ", Open Caption";
-                }
                 var formatStr = `<p>${rawFormatStr}</p>`;
 
                 var rawLanguageStr = showtimeDetails["language"];
@@ -1170,8 +1147,6 @@
                     <div id="disable-filter-toggle" data-label="Disable Filters"></div>
                     <div id="filter-toggles">
                         <div id="global-filter-toggles"></div>
-                        <hr />
-                        <div id="negative-filter-toggles"></div>
                         <hr />
                         <div id="format-filter-toggles"></div>
                         <hr />

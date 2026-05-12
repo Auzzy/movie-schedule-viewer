@@ -67,10 +67,8 @@ def _load_schedules(page, tzname):
             
             fmt = _parse_format(movie_info)
             language = _parse_language(movie_info)
-            # Brattle almost certainly offers open captions, but none right now, so I can't ensure I capture it correctly.
-            is_open_caption = False
 
-            movie.add_raw_showings([raw_start_time], showdate, tzname, fmt, is_open_caption, language, programs)
+            movie.add_raw_showings([raw_start_time], showdate, tzname, fmt, language, programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 

@@ -55,8 +55,8 @@ def _showtimes_to_ics(showtimes):
     calendar = Calendar()
     for showtime in showtimes:
         description = showtime["format"]
-        if showtime["is_open_caption"]:
-            description += ", Open Caption"
+        if showtime["programs"]:
+            description += ", ".join(sorted(showtime["programs"]))
         calendar.events.append(
             Event(
                 summary=showtime["title"],
