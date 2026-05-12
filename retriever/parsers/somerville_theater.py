@@ -52,10 +52,10 @@ def _load_schedules(schedule_xml, tzname):
         fmt = _child(perf, "PerfFlags") or "Standard"
         is_open_caption = False
 
-        programs = ["Reperatory"] if movie_info["is_reperatory"] else []
+        programs = {"Reperatory"} if movie_info["is_reperatory"] else set()
         perf_cat = _child(perf, "PerfCat")
         if perf_cat and perf_cat != "Standard":
-            programs.append(perf_cat)
+            programs.add(perf_cat)
 
         movie.add_raw_showings([start_dt], showdate, tzname, fmt, is_open_caption, programs=programs)
 

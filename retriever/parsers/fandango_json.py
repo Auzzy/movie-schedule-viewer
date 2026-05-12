@@ -58,7 +58,7 @@ def _load_schedule(showtimes_json, theater_info):
         showtimes_sections = itertools.chain([(fmt["filmFormatHeader"], ag) for fmt in movie_info["variants"] for ag in fmt["amenityGroups"]])
         for heading, showtimes_listing in showtimes_sections:
             raw_amenities = showtimes_listing.get("amenities", [])
-            programs = []
+            programs = set()
             if raw_amenities:
                 attributes = [attr["name"].lower() for attr in showtimes_listing["amenities"]]
 
@@ -67,9 +67,9 @@ def _load_schedule(showtimes_json, theater_info):
                 is_open_caption = "open caption" in attributes
 
                 if "sensory friendly" in attributes or "sensory friendly film" in attributes:
-                    programs.append("Sensory Friendly")
+                    programs.add("Sensory Friendly")
                 elif theater_name.startswith("AMC") and ("no passes" in attributes or "no trailers" in attributes):
-                    programs.append("No A-List")
+                    programs.add("No A-List")
             elif showtimes_listing.get("isDolby", False):
                 fmt = "Dolby"
                 language = None

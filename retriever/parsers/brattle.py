@@ -48,7 +48,7 @@ def _load_schedules(page, tzname):
             continue
 
         raw_programs = {el.get_text(strip=True) for el in movie_info.find(class_="pill-container").find_all(class_="pill")}
-        programs = [prog for prog in raw_programs if prog not in ("35mm Screenings", "Closed Captions")]
+        programs = {prog for prog in raw_programs if prog not in ("35mm Screenings", "Closed Captions")}
         
         for screening_info in showtimes_section.find_all(lambda tag: tag.has_attr("data-date")):
             start_time_el = screening_info.find(class_="showtime")

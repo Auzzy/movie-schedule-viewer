@@ -189,7 +189,7 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
             language = None
             is_open_caption = raw_showtime in open_captions_dict.get(name, {}).get(day, [])
 
-            movie.add_raw_showings([raw_showtime], day, tzname, fmt, is_open_caption, language, programs)
+            movie.add_raw_showings([raw_showtime], day, tzname, fmt, is_open_caption, language, set(programs))
 
     return schedule
 

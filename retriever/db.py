@@ -26,6 +26,8 @@ def _cast_value(value):
         return int(value)
     elif isinstance(value, list):
         return json.dumps(value)
+    elif isinstance(value, set):
+        return json.dumps(sorted(value))
     else:
         return value
 
@@ -36,7 +38,7 @@ def serialize_showing(theater, title, showing):
         "format": showing.fmt,
         "is_open_caption": bool(showing.is_open_caption),
         "language": showing.language,
-        "programs": sorted(showing.programs),
+        "programs": set(showing.programs),
         "start_time": showing.start.isoformat(),
         "end_time": showing.end.isoformat()
     }
@@ -49,7 +51,7 @@ def _read_showtimes_query(raw_rows, *, clean=True):
     for row in raw_rows:
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
-        row_dict["programs"] = json.loads(row["programs"] or "[]")
+        row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
         if clean:
             del row_dict["create_time"]
         rows.append(row_dict)
@@ -188,7 +190,7 @@ def load_deleted_showtimes(first_delete_time, last_delete_time, *, clean=True):
     for row in cur.fetchall():
         row_dict = dict(row)
         row_dict["is_open_caption"] = row["is_open_caption"] == 1
-        row_dict["programs"] = json.loads(row["programs"] or "[]")
+        row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
         if clean:
             del row_dict["delete_time"]
             del row_dict["id"]

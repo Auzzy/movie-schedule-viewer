@@ -17,15 +17,15 @@ def _retrieve_page(url):
 
 def _get_attributes_and_programs(movie_info):
     attributes = ["Standard"]
-    programs = []
+    programs = set()
     for attr_el in movie_info.find_all(class_="screen-attribute"):
         match attr_el.get_text(strip=True):
-            case "CP": programs.append("Community Program")
-            case "REP": programs.append("Repertory Screening")
-            case "MM": programs.append("Member Monday")
-            case "SE": programs.append("Special Event")
+            case "CP": programs.add("Community Program")
+            case "REP": programs.add("Repertory Screening")
+            case "MM": programs.add("Member Monday")
+            case "SE": programs.add("Special Event")
             case "OCAP": attributes.append("Open Caption")
-            case other: programs.append(other)
+            case other: programs.add(other)
     
     return attributes, programs
 
