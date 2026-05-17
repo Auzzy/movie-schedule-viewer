@@ -879,7 +879,23 @@
             function addTitleToWatchlistPopover(title) {
                 var watchlistRoot = document.getElementById("watchlist");
 
-                var accordionButtonEl = Object.assign(document.createElement("button"), {className: "accordion", innerHTML: title});
+                var entryTitleEl = Object.assign(document.createElement("span"), {innerHTML: title});
+                entryTitleEl.style.float = "left";
+
+                var entryDeleteEl = Object.assign(document.createElement("span"), {innerHTML: "&#x1F5D1"});
+                entryDeleteEl.style.float = "right";
+                entryDeleteEl.addEventListener("click", function() {
+                    var parentAccordion = entryDeleteEl.parentNode.parentNode;
+                    var title = parentAccordion.dataset.movie;
+                    post("watchlist/remove", {title: title})
+                        .then(function(result) {
+                            parentAccordion.remove();
+                        });
+                })
+
+                var accordionButtonEl = Object.assign(document.createElement("button"), {className: "accordion"});
+                accordionButtonEl.appendChild(entryTitleEl);
+                accordionButtonEl.appendChild(entryDeleteEl);
                 accordionButtonEl.addEventListener("click", function() {
                     Array.from(watchlistRoot.getElementsByClassName("accordion"))
                         .filter((el) => el !== accordionButtonEl)

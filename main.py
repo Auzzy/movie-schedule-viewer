@@ -198,7 +198,7 @@ def add_to_watchlist(title: Annotated[str, Body(embed=True)], client_id: Annotat
 
 
 @app.post("/watchlist/remove")
-def remove_from_watchlist(title: Annotated[str, Body()], client_id: Annotated[str | None, Cookie()] = None):
+def remove_from_watchlist(title: Annotated[str, Body(embed=True)], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
     db.remove_from_watchlist(title, client_id=client_id)
