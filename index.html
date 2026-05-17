@@ -1090,21 +1090,11 @@
                         .then(function(result) {
                             watchlistInputEl.value = "";
                             addTitleToWatchlistPopover(title);
+                            Array.from(document.getElementById("watchlist").children).forEach((entry) => {
+                                entry.style.display = "";
+                            });
                         });
                 });
-                /*
-                var watchlistInputEl = document.getElementById("watchlist-input");
-                watchlistInputEl.addEventListener("keydown", function(e) {
-                    if (e.code === "Enter") {
-                        var title = watchlistInputEl.value;
-                        post("watchlist/add", {title: title})
-                            .then(function(result) {
-                                watchlistInputEl.value = "";
-                                addTitleToWatchlistPopover(title);
-                            });
-                    }
-                });
-                */
 
                 var watchlistInputEl = document.getElementById("watchlist-input");
                 watchlistInputEl.addEventListener("keyup", function () {
