@@ -207,6 +207,7 @@ def remove_from_watchlist(title: Annotated[str, Body(embed=True)], client_id: An
 
 @app.get("/update-showtimes")
 def scan():
+    start_time = datetime.now(timezone.utc)
     try:
         print(f"Update starting at {datetime.now(timezone.utc)} UTC")
 
@@ -225,14 +226,27 @@ def scan():
                 db_showtime_updates(date_range, schedule)
 
         send_watchlist_notification(stored_showings)
-
-        return {"success": True}
+        success = True
     except Exception as exc:
         send_error_email(exc)
+        success = False
+    finally:
+        end_time = datetime.now(timezone.utc)
+        db.log_task(db.Task.UPDATE_SHOWTIMES, start_time, end_time, success)
 
 @app.get("/send-deletion-report")
 def scan_deletions():
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_time = datetime.now(timezone.utc)
+
+    today = start_time.replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday = today - timedelta(days=1)
 
-    send_deletion_report(yesterday)
+    try:
+        send_deletion_report(yesterday)
+        success = True
+    except Exception as exc:
+        success = False
+        raise exc
+    finally:
+        end_time = datetime.now(timezone.utc)
+        db.log_task(db.Task.DELETION_REPORT, start_time, end_time, success)

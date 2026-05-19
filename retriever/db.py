@@ -1,10 +1,16 @@
 import json
 import os
-from datetime import datetime, timezone
 import sqlite3
+from datetime import datetime, timezone
+from enum import StrEnum
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+
+class Task(StrEnum):
+    UPDATE_SHOWTIMES = "update-showtimes"
+    DELETION_REPORT = "deletion-report"
 
 
 def _connect():
@@ -429,6 +435,23 @@ def remove_from_watchlist(title, *, client_id):
     db.close()
 
 
+def log_task(name, start_time, end_time, success):
+    db = _connect()
+    cur = db.cursor()
+
+    if name not in list(Task):
+        raise ValueError(f"\"name\" must be one of: {list(Task)}")
+
+    cur.execute(f"""
+        INSERT INTO task_log(name, start_time, end_time, success)
+        VALUES ({_PH}, {_PH}, {_PH}, {_PH})""",
+        (name, start_time.isoformat(), end_time.isoformat(), int(bool(success)))
+    )
+
+    db.commit()
+    db.close()
+
+
 def _init_db():
     db = _connect()
     cur = db.cursor()
@@ -494,6 +517,14 @@ def _init_db():
         title TEXT NOT NULL,
         client TEXT NOT NULL,
         PRIMARY KEY(title, client)
+    )""")
+
+    cur.execute("""CREATE TABLE IF NOT EXISTS task_log (
+        name TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        success INT NOT NULL,
+        PRIMARY KEY(name, start_time)
     )""")
 
     db.commit()
