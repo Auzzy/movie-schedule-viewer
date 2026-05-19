@@ -130,10 +130,10 @@ def _program_adjustments(attributes, programs):
 
     if "OnStage at the Coolidge" in programs:
         attributes.append("Live Performance")
-
     if "Coolidge Education" in programs:
         attributes.append("Lecture")
-
+    if "Coolidge at the Speedway" in programs:
+        attributes.append("Outside")
     if "Digital Restoration" in programs and "New Release" in programs:
         programs.remove("New Release")
 
@@ -143,6 +143,8 @@ def _parse_format(raw_attributes):
         return "Live Performance"
     elif "lecture" in attributes:
         return "Lecture"
+    elif "outside" in attributes:
+        return "Outside"
     elif "70mm" in attributes:
         return "70mm"
     elif "35mm" in attributes:
@@ -181,7 +183,6 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
 
         for showtime_el in movie_info.find_all(class_="showtime-ticket__time"):
             raw_showtime = showtime_el.get_text(strip=True)
-            # attributes = base_attributes + (["Open Caption"] if raw_showtime in open_captions_dict.get(name, {}).get(day, []) else [])
             if raw_showtime in open_captions_dict.get(name, {}).get(day, []):
                 programs.append("Open Caption")
 
