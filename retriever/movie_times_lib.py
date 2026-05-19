@@ -170,6 +170,7 @@ def send_deletion_report(day):
     deleted_showtimes_by_theater = group_dict_by(db.load_deleted_showtimes(day, eod), "theater")
     filtered_deleted_showtimes = []
     for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
+        deleted_showtimes = [{**s, "programs": list(s.get("programs", set()))} for s in deleted_showtimes]
         theater_showtimes = db.load_showtimes(theater, *_start_range(deleted_showtimes))
         filtered_deleted_showtimes.extend(_true_deletion_filter(deleted_showtimes, theater_showtimes))
 
