@@ -11,6 +11,7 @@ from psycopg2.extras import RealDictCursor
 class Task(StrEnum):
     UPDATE_SHOWTIMES = "update-showtimes"
     DELETION_REPORT = "deletion-report"
+    WATCHLIST_NOTIFICATIONS = "watchlist-notifications"
 
 
 def _connect():
@@ -77,6 +78,20 @@ def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=Tru
         WHERE s.theater = {_PH} AND s.start_time{_DATETIME} >= {_PH} AND s.start_time{_DATETIME} <= {_PH}{where_title}
         ORDER BY s.title""",
         query_params
+    )
+
+    return _read_showtimes_query(cur.fetchall())
+
+def load_showtimes_by_create_time(first_create_time, last_create_time):
+    db = _connect()
+    cur = db.cursor()
+
+
+    cur.execute(f"""
+        SELECT *
+        FROM showtimes s
+        WHERE s.create_time{_DATETIME} >= {_PH} AND s.create_time{_DATETIME} <= {_PH}""",
+        (first_create_time, last_create_time)
     )
 
     return _read_showtimes_query(cur.fetchall())
@@ -383,7 +398,7 @@ def load_watchlist(client_id):
 
     cur.execute(f"""
         SELECT *
-        FROM simple_watchlist w
+        FROM watchlist w
         WHERE w.client = {_PH}
         ORDER BY w.title""",
         query_params
@@ -398,7 +413,7 @@ def load_all_watchlists():
 
     cur.execute(f"""
         SELECT *
-        FROM simple_watchlist w
+        FROM watchlist w
         ORDER BY w.title
     """)
 
@@ -411,7 +426,7 @@ def add_to_watchlist(title, *, client_id):
     cur = db.cursor()
 
     cur.execute(f"""
-        INSERT INTO simple_watchlist(title, client)
+        INSERT INTO watchlist(title, client)
         VALUES ({_PH}, {_PH})
         ON CONFLICT(title, client) DO NOTHING""",
         (title, client_id)
@@ -426,7 +441,7 @@ def remove_from_watchlist(title, *, client_id):
     cur = db.cursor()
 
     cur.execute(f"""
-        DELETE FROM simple_watchlist
+        DELETE FROM watchlist
         WHERE title = {_PH} and client = {_PH}""",
         (title, client_id)
     )
@@ -456,7 +471,7 @@ def last_successful_task_run(name):
     db = _connect()
     cur = db.cursor()
 
-    cur.execute(f"""SELECT max(start_time) as last_run FROM task_log WHERE name = {_PH}""", (name, ))
+    cur.execute(f"""SELECT max(start_time) as last_run FROM task_log WHERE name = {_PH} AND success = 1""", (name, ))
 
     last_run_str = dict(cur.fetchone()).get("last_run")
     return datetime.fromisoformat(last_run_str) if last_run_str else None
@@ -523,7 +538,7 @@ def _init_db():
         query TEXT
     )""")
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS simple_watchlist (
+    cur.execute("""CREATE TABLE IF NOT EXISTS watchlist (
         title TEXT NOT NULL,
         client TEXT NOT NULL,
         PRIMARY KEY(title, client)

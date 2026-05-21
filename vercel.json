@@ -39,5 +39,11 @@
     }, {
         "path": "/send-deletion-report",
         "schedule": "0 5 * * *"
+    }, {
+        "path": "/send-watchlist-notifications",
+        "schedule": "0 6 * * *"
+    }, {
+        "path": "/send-watchlist-notifications",
+        "schedule": "0 17 * * *"
     }]
 }

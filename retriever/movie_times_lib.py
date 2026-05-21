@@ -117,29 +117,39 @@ def db_showtime_updates(date_range, schedule):
     return deleted_showtimes
 
 
-def send_watchlist_notification(stored_showings):
-    showdates_by_title = defaultdict(lambda: defaultdict(set))
-    for showing in stored_showings:
-        showdate = datetime.fromisoformat(showing["start_time"]).date()
-        showdates_by_title[showing["title"]][showing["theater"]].add(showdate)
+def send_watchlist_notification():
+    last_time = datetime.now()
 
-    watched = db.load_all_watchlists()
-    for client_id, entries in group_dict_by(watched, "client").items():
-        lines = []
-        for entry in entries:
-            title = entry["title"]
-            showdates_by_theater = showdates_by_title.get(title, {})
-            if showdates_by_theater:
-                lines.append(f"Showings added for {title}:")
-                for theater, showdates in showdates_by_theater.items():
-                    showdate_ranges = date_ranges(showdates)
-                    showdates_str = ", ".join(date_range_to_str(dr) for dr in showdate_ranges)
-                    lines.append(f"- {theater}: {showdates_str}")
+    try:
+        first_time = db.last_successful_task_run(db.Task.WATCHLIST_NOTIFICATIONS) or (last_time - timedelta(days=365))
 
-        if lines:
-            msg = "\n".join(lines)
-            _send_email("Watchlist notification", msg, receiver=None)
+        stored_showings = db.load_showtimes_by_create_time(first_time, last_time)
 
+        showdates_by_title = defaultdict(lambda: defaultdict(set))
+        for showing in stored_showings:
+            showdate = datetime.fromisoformat(showing["start_time"]).date()
+            showdates_by_title[showing["title"]][showing["theater"]].add(showdate)
+
+        watched = db.load_all_watchlists()
+        for client_id, entries in group_dict_by(watched, "client").items():
+            lines = []
+            for entry in entries:
+                title = entry["title"]
+                showdates_by_theater = showdates_by_title.get(title, {})
+                if showdates_by_theater:
+                    lines.append(f"Showings added for {title}:")
+                    for theater, showdates in showdates_by_theater.items():
+                        showdate_ranges = date_ranges(showdates)
+                        showdates_str = ", ".join(date_range_to_str(dr) for dr in showdate_ranges)
+                        lines.append(f"- {theater}: {showdates_str}")
+
+            if lines:
+                msg = "\n".join(lines)
+                _send_email("Watchlist notification", msg, receiver=None)
+        return True
+    except Exception as exc:
+        send_error_email(exc)
+        return False
 
 def _true_deletion_filter(deleted_showtimes, current_showtimes):
     def _drop_key(adict, key):

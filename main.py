@@ -210,7 +210,6 @@ def scan():
 
         days_to_scan = int(os.environ.get("MOVIE_VIEWER_SCAN_DAYS", 30))
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
-        stored_showings = []
         for theater in theaters_to_scan:
             tz = offset_timezone(db.get_theater(theater)["tzname"])
             today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -219,10 +218,9 @@ def scan():
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
-                stored_showings.extend(db.store_showtimes(schedule))
+                db.store_showtimes(schedule)
                 db_showtime_updates(date_range, schedule)
 
-        send_watchlist_notification(stored_showings)
         print(f"Showtime scan completed at {datetime.now(timezone.utc)} UTC")
         success = True
     except Exception as exc:
@@ -240,3 +238,12 @@ def scan_deletions():
 
     end_time = datetime.now(timezone.utc)
     db.log_task(db.Task.DELETION_REPORT, start_time, end_time, success)
+
+@app.get("/send-watchlist-notifications")
+def send_watchlist_notifications():
+    start_time = datetime.now(timezone.utc)
+
+    success = send_watchlist_notification()
+
+    end_time = datetime.now(timezone.utc)
+    db.log_task(db.Task.WATCHLIST_NOTIFICATIONS, start_time, end_time, success)
