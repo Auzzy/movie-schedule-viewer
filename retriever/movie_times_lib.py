@@ -106,7 +106,7 @@ def db_showtime_updates(date_range, schedule):
     current_showtimes = db.serialize_schedule(schedule)
 
     deleted_showtimes = []
-    for showtime in db.load_showtimes(schedule.theater, *aware_date_range):
+    for showtime in db.load_showtimes(*aware_date_range, theater=schedule.theater):
         showtime_dict = dict(showtime)
 
         if now < showtime_dict['start_time'] and showtime_dict not in current_showtimes:
@@ -157,27 +157,35 @@ def _true_deletion_filter(deleted_showtimes, current_showtimes):
 
     return filtered_deleted_showtimes
 
-def send_deletion_report(day):
+def send_deletion_report():
     def _start_range(showtimes):
         time_strs = sorted([s["start_time"] for s in showtimes])
         start = datetime.fromisoformat(time_strs[0]).replace(hour=0, minute=0, second=0, microsecond=0)
         end = datetime.fromisoformat(time_strs[-1]).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
         return start, end
 
-    day = day.replace(hour=0, minute=0, second=0, microsecond=0)
-    eod = day + timedelta(days=1)
+    try:
+        last_time = datetime.now()
+        first_time = db.last_successful_task_run(db.Task.DELETION_REPORT) or (last_time - timedelta(days=365))
 
-    deleted_showtimes_by_theater = group_dict_by(db.load_deleted_showtimes(day, eod), "theater")
-    filtered_deleted_showtimes = []
-    for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
-        deleted_showtimes = [{**s, "programs": list(s.get("programs", set()))} for s in deleted_showtimes]
-        theater_showtimes = db.load_showtimes(theater, *_start_range(deleted_showtimes))
-        filtered_deleted_showtimes.extend(_true_deletion_filter(deleted_showtimes, theater_showtimes))
+        deleted_showtimes_by_theater = group_dict_by(db.load_deleted_showtimes_by_deletion_time(first_time, last_time), "theater")
+        filtered_deleted_showtimes = []
+        for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
+            deleted_showtimes = [{**s, "programs": list(s.get("programs", set()))} for s in deleted_showtimes]
+            theater_showtimes = db.load_showtimes(*_start_range(deleted_showtimes), theater=theater)
+            filtered_deleted_showtimes.extend(_true_deletion_filter(deleted_showtimes, theater_showtimes))
 
-    deleted_showtimes_json = "[\n" + ",\n".join([f"  {json.dumps(s, sort_keys=True)}" for s in filtered_deleted_showtimes]) + "\n]"
-    deleted_attachment = _build_attachment(deleted_showtimes_json, "deleted.json")
+        if not filtered_deleted_showtimes:
+            return True
 
-    _send_email("Schedule Updater Deletion Report", "Deletion report attached",  attachments=[deleted_attachment])
+        deleted_showtimes_json = "[\n" + ",\n".join([f"  {json.dumps(s, sort_keys=True)}" for s in filtered_deleted_showtimes]) + "\n]"
+        deleted_attachment = _build_attachment(deleted_showtimes_json, "deleted.json")
+
+        _send_email("Schedule Updater Deletion Report", "Deletion report attached",  attachments=[deleted_attachment])
+        return True
+    except Exception as exc:
+        send_error_email(exc)
+        return False
 
 
 def send_error_email(exc):

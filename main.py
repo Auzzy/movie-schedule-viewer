@@ -71,16 +71,16 @@ def _showtimes_to_ics(showtimes):
 
 
 def _load_visibility(theater, first_time, last_time, *, client_id):
-    showtimes = _load_showtimes(theater, first_time, last_time)
+    showtimes = _load_theater_showtimes(theater, first_time, last_time)
     visibility = db.load_visibility(client_id=client_id) if client_id else {}
 
     titles = {s["title"] for s in showtimes}
     return {title: visibility.get(title, True) for title in titles}
 
 
-def _load_showtimes(theater, first_time, last_time, title=None):
+def _load_theater_showtimes(theater, first_time, last_time, title=None):
     last_time = last_time or first_time
-    return db.load_showtimes(theater, first_time, last_time, title)
+    return db.load_showtimes(first_time, last_time, theater, title)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -100,7 +100,7 @@ def read_root(request: Request, client_id: Annotated[str | None, Cookie()] = Non
 
 @app.get("/showtimes/{theater}/{first_time}/{last_time}")
 def request_showtimes(theater: str, first_time: datetime, last_time: datetime):
-    showtimes = _load_showtimes(theater, first_time, last_time)
+    showtimes = _load_theater_showtimes(theater, first_time, last_time)
     return {"showtimes": showtimes}
 
 @app.get("/showtimes/{theater}/{first_time}/{last_time}/visibility")
@@ -188,14 +188,12 @@ def request_watchlist(client_id: Annotated[str | None, Cookie()] = None):
         "watchlist": [entry["title"] for entry in db.load_watchlist(client_id)]
     }
 
-
 @app.post("/watchlist/add")
 def add_to_watchlist(title: Annotated[str, Body(embed=True)], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
     db.add_to_watchlist(title, client_id=client_id)
     return {}
-
 
 @app.post("/watchlist/remove")
 def remove_from_watchlist(title: Annotated[str, Body(embed=True)], client_id: Annotated[str | None, Cookie()] = None):
@@ -204,12 +202,11 @@ def remove_from_watchlist(title: Annotated[str, Body(embed=True)], client_id: An
     db.remove_from_watchlist(title, client_id=client_id)
     return {}
 
-
 @app.get("/update-showtimes")
 def scan():
     start_time = datetime.now(timezone.utc)
     try:
-        print(f"Update starting at {datetime.now(timezone.utc)} UTC")
+        print(f"Showtime scan starting at {datetime.now(timezone.utc)} UTC")
 
         days_to_scan = int(os.environ.get("MOVIE_VIEWER_SCAN_DAYS", 30))
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
@@ -226,6 +223,7 @@ def scan():
                 db_showtime_updates(date_range, schedule)
 
         send_watchlist_notification(stored_showings)
+        print(f"Showtime scan completed at {datetime.now(timezone.utc)} UTC")
         success = True
     except Exception as exc:
         send_error_email(exc)
@@ -238,15 +236,7 @@ def scan():
 def scan_deletions():
     start_time = datetime.now(timezone.utc)
 
-    today = start_time.replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday = today - timedelta(days=1)
+    success = send_deletion_report()
 
-    try:
-        send_deletion_report(yesterday)
-        success = True
-    except Exception as exc:
-        success = False
-        raise exc
-    finally:
-        end_time = datetime.now(timezone.utc)
-        db.log_task(db.Task.DELETION_REPORT, start_time, end_time, success)
+    end_time = datetime.now(timezone.utc)
+    db.log_task(db.Task.DELETION_REPORT, start_time, end_time, success)

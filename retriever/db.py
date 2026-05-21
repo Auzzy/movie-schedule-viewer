@@ -61,7 +61,7 @@ def _read_showtimes_query(raw_rows, *, clean=True):
         rows.append(row_dict)
     return rows
 
-def load_showtimes(theater, first_time, last_time, title=None, *, clean=True):
+def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=True):
     db = _connect()
     cur = db.cursor()
 
@@ -177,7 +177,7 @@ def delete_showtimes(showtimes_dicts):
     db.commit()
     db.close()
 
-def load_deleted_showtimes(first_delete_time, last_delete_time, *, clean=True):
+def load_deleted_showtimes_by_deletion_time(first_delete_time, last_delete_time, *, clean=True):
     db = _connect()
     cur = db.cursor()
 
@@ -450,6 +450,16 @@ def log_task(name, start_time, end_time, success):
 
     db.commit()
     db.close()
+
+
+def last_successful_task_run(name):
+    db = _connect()
+    cur = db.cursor()
+
+    cur.execute(f"""SELECT max(start_time) as last_run FROM task_log WHERE name = {_PH}""", (name, ))
+
+    last_run_str = dict(cur.fetchone()).get("last_run")
+    return datetime.fromisoformat(last_run_str) if last_run_str else None
 
 
 def _init_db():

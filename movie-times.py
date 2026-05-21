@@ -34,7 +34,7 @@ def db_main(theater, date_range, deletion_report=True, watchlist_notifications=T
     stored_showings = db.store_showtimes(schedule)
     deleted_showings = db_showtime_updates(date_range, schedule)
     if deletion_report and deleted_showings:
-        send_deletion_report(deleted_showings)
+        send_deletion_report()
 
     if watchlist_notifications:
         send_watchlist_notification(stored_showings)
