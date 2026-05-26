@@ -1,5 +1,7 @@
+import os.path
 import re
 from datetime import date, datetime, timedelta
+from urllib.parse import urlsplit
 
 import requests
 from bs4 import BeautifulSoup, Tag
@@ -49,6 +51,9 @@ def _load_schedules(page, extra_info_dict, tzname):
             if not isinstance(screening_info, Tag):
                 continue
 
+            ticket_url = screening_info.find("a")["href"]
+            id_ = os.path.split(urlsplit(ticket_url).path.strip("/"))[-1]
+
             raw_start_time = screening_info.find("time").get_text(strip=True)
 
             schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
@@ -63,7 +68,7 @@ def _load_schedules(page, extra_info_dict, tzname):
 
             programs = _get_programs(movie_info)
 
-            movie.add_raw_showings([raw_start_time], showdate, tzname, "Standard", screen, programs=programs)
+            movie.add_raw_showing(id_, raw_start_time, showdate, tzname, "Standard", screen, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
@@ -84,10 +89,13 @@ def _load_extra_info_by_movies():
 
         # RRT keeps movies on the same screen for every showtime. 
         screens = {SCREEN_RE.match(el.get_text(strip=True)).group("screen") for el in movie_info.find_all(class_="arthousebutton")}
-        screen = sorted(screens)[0]
-        if len(screens) > 1:
+        if len(screens) == 1:
+            screen = sorted(screens)[0]
+        elif len(screens) > 1:
             print(f"[WARN] Found multiple screens for \"{name}\" showtimes.")
             screen += "*"
+        else:
+            screen = None
 
         info_dict[name] = {
             "runtime": runtime_match.group("runtime") if runtime_match else 0,

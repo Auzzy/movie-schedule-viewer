@@ -1,6 +1,7 @@
 import re
 from calendar import day_abbr
 from datetime import date, datetime, timedelta
+from urllib.parse import urlsplit, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
@@ -181,7 +182,11 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
         if not attributes:
             attributes.append("Standard")
 
-        for showing_el in movie_info.find_all(class_="showtime-ticket"):
+        for showing_el in movie_info.find_all(class_="showtime-ticket__button"):
+            qs_dict = parse_qs(urlsplit(showing_el["href"]).query)
+            id_ = (qs_dict.get("evtinfo") or qs_dict["guid"])[0]
+
+            showing_info_el = showing_el.find_all(class_="showtime-ticket")
             raw_showtime = showing_el.find(class_="showtime-ticket__time").get_text(strip=True)
             if raw_showtime in open_captions_dict.get(name, {}).get(day, []):
                 programs.append("Open Caption")
@@ -193,7 +198,7 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
             fmt = _parse_format(attributes)
             language = None
 
-            movie.add_raw_showings([raw_showtime], day, tzname, fmt, screen, language, set(programs))
+            movie.add_raw_showing(id_, raw_showtime, day, tzname, fmt, screen, language, set(programs))
 
     return schedule
 

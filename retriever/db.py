@@ -40,9 +40,11 @@ def _cast_value(value):
 
 def serialize_showing(theater, title, showing):
     return {
+        "id": showing.id,
         "theater": theater,
         "title": title,
         "format": showing.fmt,
+        "screen": showing.screen,
         "language": showing.language,
         "programs": set(showing.programs),
         "start_time": showing.start.isoformat(),
@@ -102,7 +104,7 @@ def store_showtimes(schedule, *, clean=True):
 
     key_field_names = ("theater", "title", "format", "language", "start_time")
     key_field_names_str = ", ".join(key_field_names)
-    field_names = key_field_names + ("end_time", "programs", "screen", "create_time")
+    field_names = key_field_names + ("end_time", "programs", "screen", "create_time", "id")
     field_names_str = ", ".join(field_names)
 
     recheck = []
@@ -118,7 +120,8 @@ def store_showtimes(schedule, *, clean=True):
                 showing.end.isoformat(),
                 json.dumps(sorted(showing.programs)),
                 showing.screen,
-                create_time
+                create_time,
+                showing.id
             )
 
             cur.execute(f"""
@@ -174,7 +177,7 @@ def delete_showtimes(showtimes_dicts):
 
     delete_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     for showtime in showtimes_dicts:
-        delete_field_names = ("theater", "title", "format", "language", "programs", "start_time")
+        delete_field_names = ("id", "theater", "title", "format", "language", "programs", "start_time")
         delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
         delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
         delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
@@ -272,9 +275,10 @@ def add_to_schedule(showtime, *, client_id):
     cur = db.cursor()
 
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    field_names = ("theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "create_time", "client")
+    field_names = ("id", "theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "create_time", "client")
     field_names_str = ", ".join(field_names)
     field_values = (
+        showtime["id"],
         showtime["theater"],
         showtime["title"],
         showtime["format"],
@@ -484,6 +488,7 @@ def _init_db():
     cur = db.cursor()
 
     cur.execute("""CREATE TABLE IF NOT EXISTS showtimes (
+        id TEXT,
         theater TEXT NOT NULL,
         title TEXT NOT NULL,
         format TEXT,
@@ -499,7 +504,8 @@ def _init_db():
     # I could do this as a soft delete from showtimes. But this allows
     # capturing any instance of them re-adding the exact same showtime.
     cur.execute("""CREATE TABLE IF NOT EXISTS deleted_showtimes (
-        id BIGSERIAL PRIMARY KEY,
+        id TEXT,
+        autoid BIGSERIAL PRIMARY KEY,
         theater TEXT NOT NULL,
         title TEXT NOT NULL,
         format TEXT,
@@ -519,6 +525,7 @@ def _init_db():
     )""")
     
     cur.execute("""CREATE TABLE IF NOT EXISTS schedule (
+        id TEXT,
         theater TEXT NOT NULL,
         title TEXT NOT NULL,
         format TEXT,

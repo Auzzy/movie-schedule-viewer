@@ -133,14 +133,15 @@ class Showing:
         return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod
-    def create(raw_start_time, runtime_min, day, tzname, fmt, screen, language=None, programs=set()):
+    def create(id_, raw_start_time, runtime_min, day, tzname, fmt, screen, language=None, programs=set()):
         start_time = Showing._parse_showtime(raw_start_time, tzname)
         start = datetime.combine(day, start_time)
         end = start + timedelta(minutes=runtime_min)
         lang = language or "UNKNOWN"
-        return Showing(fmt, lang, programs, start, end, screen)
+        return Showing(id_, fmt, lang, programs, start, end, screen)
 
-    def __init__(self, fmt, language, programs, start, end, screen=None):
+    def __init__(self, id_, fmt, language, programs, start, end, screen=None):
+        self.id = id_
         self.fmt = fmt
         self.language = language
         self.programs = set(programs)
@@ -183,9 +184,8 @@ class Movie:
         self.runtime_min = runtime_min
         self.showings = []
 
-    def add_raw_showings(self, raw_times, day, tzname, fmt, screen=None, language=None, programs=set()):
-        for raw_time in raw_times:
-            self.showings.append(Showing.create(raw_time, self.runtime_min, day, tzname, fmt, screen, language, programs))
+    def add_raw_showing(self, id_, raw_time, day, tzname, fmt, screen=None, language=None, programs=set()):
+        self.showings.append(Showing.create(id_, raw_time, self.runtime_min, day, tzname, fmt, screen, language, programs))
 
     @property
     def first(self):

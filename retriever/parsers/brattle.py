@@ -51,11 +51,13 @@ def _load_schedules(page, tzname):
         programs = {prog for prog in raw_programs if prog not in ("35mm Screenings", "Closed Captions")}
         
         for screening_info in showtimes_section.find_all(lambda tag: tag.has_attr("data-date")):
-            start_time_el = screening_info.find(class_="showtime")
-            for child in start_time_el.children:
+            showtime_el = screening_info.find(class_="showtime")
+            for child in showtime_el.children:
                 if not isinstance(child, str):
                     child.clear()
-            raw_start_time = start_time_el.get_text(strip=True)
+            raw_start_time = showtime_el.get_text(strip=True)
+
+            id_ = showtime_el["data-showtime_id"]
 
             showdate = datetime.fromtimestamp(int(screening_info["data-date"])).date()
             schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
@@ -69,7 +71,7 @@ def _load_schedules(page, tzname):
             language = _parse_language(movie_info)
             screen = None
 
-            movie.add_raw_showings([raw_start_time], showdate, tzname, fmt, screen, language, programs)
+            movie.add_raw_showing(id_, raw_start_time, showdate, tzname, fmt, screen, language, programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 

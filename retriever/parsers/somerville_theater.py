@@ -37,6 +37,7 @@ def _load_schedules(schedule_xml, tzname):
 
         schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
 
+        id_ = _child(perf, "Code")
         film_code = _child(perf, "FilmCode")
         movie_info = films.get(film_code)
         if not movie_info:
@@ -57,7 +58,7 @@ def _load_schedules(schedule_xml, tzname):
         if perf_cat and perf_cat != "Standard":
             programs.add(perf_cat)
 
-        movie.add_raw_showings([start_dt], showdate, tzname, fmt, screen, programs=programs)
+        movie.add_raw_showing(id_, start_dt, showdate, tzname, fmt, screen, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
