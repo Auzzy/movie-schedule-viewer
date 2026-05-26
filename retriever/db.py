@@ -102,7 +102,7 @@ def store_showtimes(schedule, *, clean=True):
 
     key_field_names = ("theater", "title", "format", "language", "start_time")
     key_field_names_str = ", ".join(key_field_names)
-    field_names = key_field_names + ("end_time", "programs", "create_time")
+    field_names = key_field_names + ("end_time", "programs", "screen", "create_time")
     field_names_str = ", ".join(field_names)
 
     recheck = []
@@ -117,6 +117,7 @@ def store_showtimes(schedule, *, clean=True):
                 showing.start.isoformat(),
                 showing.end.isoformat(),
                 json.dumps(sorted(showing.programs)),
+                showing.screen,
                 create_time
             )
 
@@ -179,7 +180,7 @@ def delete_showtimes(showtimes_dicts):
         delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
         cur.execute(f"DELETE FROM showtimes WHERE {delete_field_where_str}", delete_field_values)
 
-        new_insert_field_names = ("end_time", "delete_time")
+        new_insert_field_names = ("end_time", "screen", "delete_time")
         insert_field_names = delete_field_names + new_insert_field_names
         insert_field_names_str = ", ".join(insert_field_names)
         insert_field_values = delete_field_values + tuple([showtime[field] for field in new_insert_field_names[:-1]])
@@ -271,12 +272,13 @@ def add_to_schedule(showtime, *, client_id):
     cur = db.cursor()
 
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    field_names = ("theater", "title", "format", "language", "programs", "start_time", "end_time", "create_time", "client")
+    field_names = ("theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "create_time", "client")
     field_names_str = ", ".join(field_names)
     field_values = (
         showtime["theater"],
         showtime["title"],
         showtime["format"],
+        showtime["screen"],
         showtime["language"],
         json.dumps(sorted(showtime["programs"])),
         showtime["start_time"],
@@ -485,6 +487,7 @@ def _init_db():
         theater TEXT NOT NULL,
         title TEXT NOT NULL,
         format TEXT,
+        screen TEXT,
         language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
@@ -500,6 +503,7 @@ def _init_db():
         theater TEXT NOT NULL,
         title TEXT NOT NULL,
         format TEXT,
+        screen TEXT,
         language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,
@@ -518,6 +522,7 @@ def _init_db():
         theater TEXT NOT NULL,
         title TEXT NOT NULL,
         format TEXT,
+        screen TEXT,
         language TEXT NOT NULL,
         programs TEXT,
         start_time TEXT NOT NULL,

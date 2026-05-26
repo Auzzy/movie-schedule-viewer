@@ -133,19 +133,20 @@ class Showing:
         return showtime.replace(tzinfo=tz).timetz()
 
     @staticmethod
-    def create(raw_start_time, runtime_min, day, tzname, fmt, language=None, programs=set()):
+    def create(raw_start_time, runtime_min, day, tzname, fmt, screen, language=None, programs=set()):
         start_time = Showing._parse_showtime(raw_start_time, tzname)
         start = datetime.combine(day, start_time)
         end = start + timedelta(minutes=runtime_min)
         lang = language or "UNKNOWN"
-        return Showing(fmt, lang, programs, start, end)
+        return Showing(fmt, lang, programs, start, end, screen)
 
-    def __init__(self, fmt, language, programs, start, end):
+    def __init__(self, fmt, language, programs, start, end, screen=None):
         self.fmt = fmt
         self.language = language
         self.programs = set(programs)
         self.start = start
         self.end = end
+        self.screen = screen
 
     def filter(self, filter_params):
         return filter_params.apply_start_filter(self.start.timetz())
@@ -159,8 +160,9 @@ class Showing:
 
         lang_str = f" ({self.language})" if self.language not in ("UNKNOWN", "English") else ""
         programs_str = f" ({', '.join(sorted(self.programs))})" if self.programs else ""
+        screen_str = f" ({self.screen})" if self.screen else ""
 
-        return f"{date_str}{dur_str} ({self.fmt}){lang_str}{programs_str}"
+        return f"{date_str}{dur_str} ({self.fmt}){lang_str}{programs_str}{screen_str}"
 
 
 class Movie:
@@ -181,9 +183,9 @@ class Movie:
         self.runtime_min = runtime_min
         self.showings = []
 
-    def add_raw_showings(self, raw_times, day, tzname, fmt, language=None, programs=set()):
+    def add_raw_showings(self, raw_times, day, tzname, fmt, screen=None, language=None, programs=set()):
         for raw_time in raw_times:
-            self.showings.append(Showing.create(raw_time, self.runtime_min, day, tzname, fmt, language, programs))
+            self.showings.append(Showing.create(raw_time, self.runtime_min, day, tzname, fmt, screen, language, programs))
 
     @property
     def first(self):

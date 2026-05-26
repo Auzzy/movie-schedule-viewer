@@ -11,6 +11,7 @@ MAIN_URL = "https://redrivertheatres.org/"
 SHOWTIMES_URL = "https://ticketing.useast.veezi.com/sessions/?siteToken=rh66des21wzqpsqgg0jkjqcr88"
 REQUEST_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'}
 RUNTIME_RE = re.compile(r"\((?P<runtime>\d{1,3}) min.*\) \d{4}")
+SCREEN_RE = re.compile(r".*Screen (?P<screen>\d).*")
 
 def _retrieve_page(url):
     return requests.get(url, headers=REQUEST_HEADERS).text
@@ -33,10 +34,11 @@ def _clean_name(name):
         name = name.rsplit("-", 1)[0]
     return name.strip()
 
-def _load_schedules(page, runtime_dict, tzname):
+def _load_schedules(page, extra_info_dict, tzname):
     schedules = {}
     for movie_info in page.find_all(class_="film"):
         name = _clean_name(movie_info.find(class_="title").get_text(strip=True))
+        extra_info = extra_info_dict.get(name, {})
 
         showdate_str = movie_info.find(class_="date").get_text(strip=True)
         showdate = datetime.strptime(showdate_str, "%A %d, %B").replace(year=date.today().year).date()
@@ -53,37 +55,50 @@ def _load_schedules(page, runtime_dict, tzname):
             
             movie = next((m for m in schedule.movies if m.name == name), None)
             if not movie:
-                runtime_str = runtime_dict.get(name, "0")
+                runtime_str = extra_info.get("runtime", "0")
                 movie = schedule.add_raw_movie(name, runtime_str)
-            
+
+            raw_screen = extra_info.get("screen")
+            screen = f"Screen {raw_screen}" if raw_screen else None
+
             programs = _get_programs(movie_info)
 
-            movie.add_raw_showings([raw_start_time], showdate, tzname, "Standard", programs=programs)
+            movie.add_raw_showings([raw_start_time], showdate, tzname, "Standard", screen, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 
 # Red River's main page is an unreliable source of showtimes. It only displays
 # ten showtimes per entry before requiring the user to click a link for the
 # rest, and it's not uncommon for it to omit movies altogether in error.
-# However, the main ticketing page doesn't include runtime info.
-# Thus, we attempt to load the runtimes from the main page, so they can be
-# looked up while parsing the ticketing page.
-def _load_runtimes_by_movies():
+# However, the main ticketing page doesn't include runtime or screen info.
+# Thus, we attempt to load them from the main page, so they can be looked up
+# while parsing the ticketing page.
+def _load_extra_info_by_movies():
     main_html = BeautifulSoup(_retrieve_page(MAIN_URL), 'html.parser')
-    runtime_dict = {}
+    info_dict = {}
     for movie_info in main_html.find_all(class_="podsfilm"):
         name = _clean_name(movie_info.find(class_="podsfilmtitlelink").get_text(strip=True))
 
         details_str = movie_info.find(class_="showinfodiv").get_text(strip=True)
         runtime_match = RUNTIME_RE.match(details_str)
-        
-        runtime_dict[name] = runtime_match.group("runtime") if runtime_match else 0
-    return runtime_dict
+
+        # RRT keeps movies on the same screen for every showtime. 
+        screens = {SCREEN_RE.match(el.get_text(strip=True)).group("screen") for el in movie_info.find_all(class_="arthousebutton")}
+        screen = sorted(screens)[0]
+        if len(screens) > 1:
+            print(f"[WARN] Found multiple screens for \"{name}\" showtimes.")
+            screen += "*"
+
+        info_dict[name] = {
+            "runtime": runtime_match.group("runtime") if runtime_match else 0,
+            "screen": screen
+        }
+    return info_dict
 
 
 def load_schedules_by_day(theater_info, date_range, quiet=False):
     schedules_by_day = []
     showtimes_html = BeautifulSoup(_retrieve_page(SHOWTIMES_URL), 'html.parser')
-    runtime_dict = _load_runtimes_by_movies()
-    schedules_by_day = _load_schedules(showtimes_html, runtime_dict, theater_info["tzname"])
+    extra_info_dict = _load_extra_info_by_movies()
+    schedules_by_day = _load_schedules(showtimes_html, extra_info_dict, theater_info["tzname"])
     return [s for s in schedules_by_day if date_range[0] <= s.day <= date_range[1]]

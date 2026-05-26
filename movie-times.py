@@ -37,7 +37,7 @@ def db_main(theater, date_range, deletion_report=True, watchlist_notifications=T
         send_deletion_report()
 
     if watchlist_notifications:
-        send_watchlist_notification(stored_showings)
+        send_watchlist_notification()
 
 def email_main(dates, theaters, sender, sender_name, receiver):
     theaters = theaters or os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
@@ -60,7 +60,7 @@ def main(args):
     elif args.output == "email":
         email_main(args.date_range, args.theaters, args.frm, args.from_name, args.to)
     elif args.output == "db":
-        db_main(args.theater, args.date_range, args.deletion_report)
+        db_main(args.theater, args.date_range, args.deletion_report, args.watchlist_notifications)
 
 
 def parse_args():
@@ -96,6 +96,7 @@ def parse_args():
     db_parser.add_argument("--theater", default="AMC Methuen")
     db_parser.add_argument("--date", type=date_range_str_parser, dest="date_range", default="next movie week")
     db_parser.add_argument("--deletion-report", action="store_true")
+    db_parser.add_argument("--watchlist-notifications", action="store_true")
 
     return parser.parse_args()
 

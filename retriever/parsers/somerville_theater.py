@@ -50,13 +50,14 @@ def _load_schedules(schedule_xml, tzname):
 
         start_dt = datetime.strptime(_child(perf, "StartTime"), "%H:%M:%S")
         fmt = _child(perf, "PerfFlags") or "Standard"
+        screen = "Screen " + _child(perf, "ScreenCode")
 
         programs = {"Reperatory"} if movie_info["is_reperatory"] else set()
         perf_cat = _child(perf, "PerfCat")
         if perf_cat and perf_cat != "Standard":
             programs.add(perf_cat)
 
-        movie.add_raw_showings([start_dt], showdate, tzname, fmt, programs=programs)
+        movie.add_raw_showings([start_dt], showdate, tzname, fmt, screen, programs=programs)
 
     return sorted(schedules.values(), key=lambda s: s.day)
 

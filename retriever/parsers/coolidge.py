@@ -181,17 +181,19 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
         if not attributes:
             attributes.append("Standard")
 
-        for showtime_el in movie_info.find_all(class_="showtime-ticket__time"):
-            raw_showtime = showtime_el.get_text(strip=True)
+        for showing_el in movie_info.find_all(class_="showtime-ticket"):
+            raw_showtime = showing_el.find(class_="showtime-ticket__time").get_text(strip=True)
             if raw_showtime in open_captions_dict.get(name, {}).get(day, []):
                 programs.append("Open Caption")
 
+            screen = showing_el.find(class_="showtime-ticket__venue").get_text(strip=True)
+            
             _apply_projection_specifics(name, raw_showtime, day, tzname, attributes)
 
             fmt = _parse_format(attributes)
             language = None
 
-            movie.add_raw_showings([raw_showtime], day, tzname, fmt, language, set(programs))
+            movie.add_raw_showings([raw_showtime], day, tzname, fmt, screen, language, set(programs))
 
     return schedule
 

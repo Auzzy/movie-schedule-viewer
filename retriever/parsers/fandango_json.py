@@ -77,7 +77,7 @@ def _load_schedule(showtimes_json, theater_info):
                 language = None
 
             raw_showtimes = [showtime["date"] for showtime in showtimes_listing["showtimes"]]
-            movie.add_raw_showings(raw_showtimes, day, tzname, fmt, language, programs)
+            movie.add_raw_showings(raw_showtimes, day, tzname, fmt, None, language, programs)
 
     return schedule
 
