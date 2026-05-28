@@ -86,7 +86,7 @@ def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=Tru
         query_params
     )
 
-    return _read_showtimes_query(cur.fetchall())
+    return _read_showtimes_query(cur.fetchall(), clean=clean)
 
 def load_showtimes_by_create_time(first_create_time, last_create_time):
     db = _connect()
@@ -173,7 +173,7 @@ def store_showtimes(schedule, *, clean=True):
 
     cur.execute(f"""SELECT * FROM showtimes s WHERE s.create_time >= {_PH} ORDER BY s.title""", (create_time, ))
 
-    return _read_showtimes_query(cur.fetchall())
+    return _read_showtimes_query(cur.fetchall(), clean=clean)
 
 def delete_showtimes(showtimes_dicts):
     db = _connect()
@@ -187,13 +187,15 @@ def delete_showtimes(showtimes_dicts):
         delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
         cur.execute(f"DELETE FROM showtimes WHERE {delete_field_where_str}", delete_field_values)
 
-        new_insert_field_names = ("end_time", "screen", "delete_time")
+        new_insert_field_names = ("end_time", )
+        if "screen" in showtime:
+            new_insert_field_names += ("screen", )
         insert_field_names = delete_field_names + new_insert_field_names
         insert_field_names_str = ", ".join(insert_field_names)
-        insert_field_values = delete_field_values + tuple([showtime[field] for field in new_insert_field_names[:-1]])
+        insert_field_values = delete_field_values + tuple([showtime[field] for field in new_insert_field_names])
         cur.execute(f"""
-            INSERT INTO deleted_showtimes({insert_field_names_str})
-            VALUES ({', '.join([_PH] * len(insert_field_names))})""",
+            INSERT INTO deleted_showtimes({insert_field_names_str}, delete_time)
+            VALUES ({', '.join([_PH] * len(insert_field_names))}, {_PH})""",
             tuple(insert_field_values) + (delete_time,)
         )
 

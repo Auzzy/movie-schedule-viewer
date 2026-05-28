@@ -97,17 +97,23 @@ def collect_schedule(theater, filepath, date_range, filter_params, quiet):
 
 
 def db_showtime_updates(date_range, schedule):
-    tz = offset_timezone(db.get_theater(schedule.theater)["tzname"])
+    theater = db.get_theater(schedule.theater)
+    tz = offset_timezone(theater["tzname"])
     now = datetime.now(tz).replace(microsecond=0).isoformat()
 
     # The date_range is inclusive of the end time, but load_showtimes is not.
     aware_date_range = (date_range[0].astimezone(tz), date_range[1].astimezone(tz) + timedelta(days=1))
 
     current_showtimes = db.serialize_schedule(schedule)
+    if theater["parser"] == "fandango_json":
+        current_showtimes = [{k: v for k, v in s.items() if k != "screen"} for s in current_showtimes]
 
     deleted_showtimes = []
     for showtime in db.load_showtimes(*aware_date_range, theater=schedule.theater):
         showtime_dict = dict(showtime)
+        if theater["parser"] == "fandango_json":
+            # Screens for these showtimes aren't populated until later, so they're deleted separately.
+            showtime_dict.pop("screen", None)
 
         if now < showtime_dict['start_time'] and showtime_dict not in current_showtimes:
             deleted_showtimes.append(showtime_dict)

@@ -253,7 +253,7 @@ def send_watchlist_notifications():
 def run_gather_fandango_screens(theater: str):
     start_time = datetime.now(timezone.utc)
 
-    print(f"Gather {theater} auditorums starting at {start_time} UTC")
+    print(f"Gather {theater} auditoriums starting at {start_time} UTC")
 
     success = gather_fandango_screens(theater)
 
