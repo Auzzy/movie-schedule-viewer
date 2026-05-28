@@ -1,3 +1,4 @@
+import json
 import os.path
 import re
 from datetime import date, datetime, timedelta
@@ -13,7 +14,7 @@ MAIN_URL = "https://redrivertheatres.org/"
 SHOWTIMES_URL = "https://ticketing.useast.veezi.com/sessions/?siteToken=rh66des21wzqpsqgg0jkjqcr88"
 REQUEST_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'}
 RUNTIME_RE = re.compile(r"\((?P<runtime>\d{1,3}) min.*\) \d{4}")
-SCREEN_RE = re.compile(r".*Screen (?P<screen>\d).*")
+SHOWTIME_INFO_RE = re.compile(r"(?P<showtime>\d\d?:\d\d (?:am|pm)) Screen (?P<screen>\d)")
 
 def _retrieve_page(url):
     return requests.get(url, headers=REQUEST_HEADERS).text
@@ -36,7 +37,26 @@ def _clean_name(name):
         name = name.rsplit("-", 1)[0]
     return name.strip()
 
+# When a showtime sells out, the link to purchase tickets is removed, so its ID
+# becomes unavailable. However, there's a JSON blob embedded at the bottom of
+# the page that still contains it.
+def _load_ids(page, extra_info_dict):
+    for blob in page.find_all(type="application/ld+json"):
+        showtime_json = json.loads(blob.get_text(strip=True))
+        if isinstance(showtime_json, list):
+            for showtime_entry in showtime_json:
+                if showtime_entry["@type"] != "VisualArtsEvent":
+                    continue
+
+                id_ = os.path.split(urlsplit(showtime_entry["url"]).path.strip("/"))[-1]
+                name = showtime_entry["name"]
+                showtime = datetime.fromisoformat(showtime_entry["startDate"])
+                key = (showtime.date(), showtime.time())
+                extra_info_dict[name]["showtimes"].setdefault(key, {})["id"] = id_
+
 def _load_schedules(page, extra_info_dict, tzname):
+    _load_ids(page, extra_info_dict)
+
     schedules = {}
     for movie_info in page.find_all(class_="film"):
         name = _clean_name(movie_info.find(class_="title").get_text(strip=True))
@@ -51,14 +71,6 @@ def _load_schedules(page, extra_info_dict, tzname):
             if not isinstance(screening_info, Tag):
                 continue
 
-            ticket_link = screening_info.find("a")
-            if "sold-out-session" in ticket_link.get("class", []):
-                # When a showtime is sold out, RRT keeps it as an <a>, but drops the href, so there's no ID.
-                id_ = None
-            else:
-                ticket_url = ticket_link["href"]
-                id_ = os.path.split(urlsplit(ticket_url).path.strip("/"))[-1]
-
             raw_start_time = screening_info.find("time").get_text(strip=True)
 
             schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
@@ -68,7 +80,10 @@ def _load_schedules(page, extra_info_dict, tzname):
                 runtime_str = extra_info.get("runtime", "0")
                 movie = schedule.add_raw_movie(name, runtime_str)
 
-            screen = extra_info.get("screen") or None
+            key = (showdate, datetime.strptime(raw_start_time, "%I:%M %p").time())
+            extra_showtime_info = extra_info["showtimes"].get(key, {})
+            screen = extra_showtime_info.get("screen") or None
+            id_ = extra_showtime_info.get("id") or None
 
             programs = _get_programs(movie_info)
 
@@ -91,20 +106,29 @@ def _load_extra_info_by_movies():
         details_str = movie_info.find(class_="showinfodiv").get_text(strip=True)
         runtime_match = RUNTIME_RE.match(details_str)
 
-        # RRT keeps movies on the same screen for every showtime. 
-        screens = {SCREEN_RE.match(el.get_text(strip=True)).group("screen") for el in movie_info.find_all(class_="arthousebutton")}
-        if len(screens) == 1:
-            screen = sorted(screens)[0]
-        elif len(screens) > 1:
-            print(f"[WARN] Found multiple screens for \"{name}\" showtimes.")
-            screen += "*"
-        else:
-            screen = None
+        showtime_el = movie_info.find(class_="datediv")
+        if not showtime_el:
+            continue
+
+        curdate = None
+        showtime_info = {}
+        while showtime_el:
+            if "datediv" in showtime_el.get("class"):
+                curdate = datetime.strptime(showtime_el.get_text(strip=True), "%A, %b %d").replace(year=date.today().year).date()
+            elif "arthousebutton" in showtime_el.get("class"):
+                info = SHOWTIME_INFO_RE.match(showtime_el.get_text(strip=True)).groupdict()
+                showtime = datetime.strptime(info["showtime"], "%I:%M %p").time()
+                showtime_info[(curdate, showtime)] = {
+                    "screen": info["screen"]
+                }
+
+            showtime_el = showtime_el.next_sibling
 
         info_dict[name] = {
             "runtime": runtime_match.group("runtime") if runtime_match else 0,
-            "screen": screen
+            "showtimes": showtime_info
         }
+
     return info_dict
 
 
