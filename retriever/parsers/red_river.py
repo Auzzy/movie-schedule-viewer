@@ -52,7 +52,10 @@ def _load_ids(page, extra_info_dict):
                 name = showtime_entry["name"]
                 showtime = datetime.fromisoformat(showtime_entry["startDate"])
                 key = (showtime.date(), showtime.time())
-                extra_info_dict[name]["showtimes"].setdefault(key, {})["id"] = id_
+                if "name" in extra_info_dict:
+                    extra_info_dict[name]["showtimes"].setdefault(key, {})["id"] = id_
+                else:
+                    extra_info_dict[name] = {"showtimes": {key: {"id": id_}}}
 
 def _load_schedules(page, extra_info_dict, tzname):
     _load_ids(page, extra_info_dict)
