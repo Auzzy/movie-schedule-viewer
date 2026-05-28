@@ -51,8 +51,13 @@ def _load_schedules(page, extra_info_dict, tzname):
             if not isinstance(screening_info, Tag):
                 continue
 
-            ticket_url = screening_info.find("a")["href"]
-            id_ = os.path.split(urlsplit(ticket_url).path.strip("/"))[-1]
+            ticket_link = screening_info.find("a")
+            if "sold-out-session" in ticket_link["class"]:
+                # When a showtime is sold out, RRT keeps it as an <a>, but drops the href, so there's no ID.
+                id_ = None
+            else:
+                ticket_url = ticket_link["href"]
+                id_ = os.path.split(urlsplit(ticket_url).path.strip("/"))[-1]
 
             raw_start_time = screening_info.find("time").get_text(strip=True)
 
