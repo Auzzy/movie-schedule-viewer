@@ -223,21 +223,17 @@ def add_theater_from_search(query, *, name=None, rank=None):
             print(f"- {result['fullname']}")
 
 
-def gather_fandango_screens():
+def gather_fandango_screens(theater):
     try:
         first_time = datetime.now().replace(microsecond=0)
         last_time = first_time + timedelta(days=get_days_to_scan())
 
         fandango_theaters = [theater["name"] for theater in db.get_theaters(clean=False) if theater["parser"] == "fandango_json"]
-        hash_codes = set()
-        for showtime in db.load_showtimes(first_time, last_time):
-            id_ = showtime["id"]
-            if id_ and showtime["theater"] in fandango_theaters:
-                hash_codes.add(id_)
+        if theater not in fandango_theaters:
+            raise ValueError(f"{theater} is not one of: {fandango_theaters.join(', ')}.")
 
-        hash_to_auditorium = fandango_json.gather_seat_info(hash_codes)
-        for hash_code, auditorium in hash_to_auditorium.items():
-            print(f"{hash_code}: {auditorium}")
+        showtimes = db.load_showtimes(first_time, last_time, theater)
+        hash_to_auditorium = fandango_json.gather_seat_info(showtimes)
         db.update_showtime_screens(hash_to_auditorium)
         return True
     except Exception as exc:

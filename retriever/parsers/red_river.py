@@ -52,7 +52,7 @@ def _load_schedules(page, extra_info_dict, tzname):
                 continue
 
             ticket_link = screening_info.find("a")
-            if "sold-out-session" in ticket_link["class"]:
+            if "sold-out-session" in ticket_link.get("class", []):
                 # When a showtime is sold out, RRT keeps it as an <a>, but drops the href, so there's no ID.
                 id_ = None
             else:

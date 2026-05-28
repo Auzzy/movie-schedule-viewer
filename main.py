@@ -249,11 +249,15 @@ def send_watchlist_notifications():
     end_time = datetime.now(timezone.utc)
     db.log_task(db.Task.WATCHLIST_NOTIFICATIONS, start_time, end_time, success)
 
-@app.get("/gather-fandango-auditoriums")
-def run_gather_fandango_screens():
+@app.get("/gather-fandango-auditoriums/{theater}")
+def run_gather_fandango_screens(theater: str):
     start_time = datetime.now(timezone.utc)
 
-    success = gather_fandango_screens()
+    print(f"Gather {theater} auditorums starting at {start_time} UTC")
+
+    success = gather_fandango_screens(theater)
 
     end_time = datetime.now(timezone.utc)
     db.log_task(db.Task.GATHER_FANDANGO_SCREENS, start_time, end_time, success)
+
+    print(f"Completed gather {theater} auditoriums at {end_time} UTC")

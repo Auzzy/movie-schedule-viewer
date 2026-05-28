@@ -46,10 +46,32 @@
         "path": "/send-watchlist-notifications",
         "schedule": "0 17 * * *"
     }, {
-        "path": "/gather-fandango-auditoriums",
+        "path": "/gather-fandango-auditoriums/AMC%20Methuen",
         "schedule": "0 20 * * 2"
     }, {
-        "path": "/gather-fandango-auditoriums",
-        "schedule": "0 4 * * 0-2,4-6"
+        "path": "/gather-fandango-auditoriums/AMC%20Methuen",
+        "schedule": "0 4 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums/AMC%20Boston%20Common",
+        "schedule": "0 4 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums/AMC%20Tyngsboro",
+        "schedule": "0 4 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums/AMC%20Causeway",
+        "schedule": "0 4 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums/Apple%20Hooksett",
+        "schedule": "0 5 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums/Apple%20Merrimack",
+        "schedule": "0 5 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums/Apple%20Cinema%20Providence",
+        "schedule": "0 5 * * *"
+    }, {
+        "path": "/gather-fandango-auditoriums/O'Neil%20Londonderry",
+        "schedule": "0 5 * * *"
     }]
 }
+

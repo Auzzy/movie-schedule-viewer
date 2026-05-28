@@ -161,28 +161,36 @@ def _retrieve_seats(showtime_hash_code):
     return _request_fandango(url).json()
 
 
-def gather_seat_info(hash_codes):
+def gather_seat_info(showtimes):
     hash_to_auditorium = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_hash = {executor.submit(_retrieve_seats, hash_code): hash_code for hash_code in hash_codes}
+        future_to_hash = {executor.submit(_retrieve_seats, showtime["id"]): showtime for showtime in showtimes}
         for future in concurrent.futures.as_completed(future_to_hash):
-            hash_code = future_to_hash[future]
+            showtime = future_to_hash[future]
             try:
                 seat_info = future.result()
             except Exception as exc:
-                print(f'{hash_code} generated an exception: {exc}')
+                print(f'{showtime["id"]} generated an exception: {exc}')
 
             if isinstance(seat_info, list):
-                # Expired shouldn't happen. Communication error occurs when
-                # the movie is listed on Fandango, but not AMC, such as when
-                # it hasn't been announced yet.
-                if any(payload.get("id") in ("ExpiredPerformance", "PosCommunicationError") for payload in seat_info):
+                # - ExpiredPerformance - shouldn't happen.
+                # - PosCommunicationError - occurs when the movie is listed on
+                #   Fandango, but not AMC, such as when it's unnanounced.
+                # - ShowtimeNotFound - indicates a defunct showtime that hasn't
+                # been picked up by the scanner yet.
+                # - PerformanceSoldOut - Unsure. Happening on an unavailable
+                #   showtime.
+                if any(payload.get("id") in ("ExpiredPerformance", "PosCommunicationError", "ShowtimeNotFound", "PerformanceSoldOut") for payload in seat_info):
                     continue
-                print(f"UNKNOWN: {seat_info}")
+                print(f"UNKNOWN: {showtime['title']} @ {showtime['start_time']}: {seat_info}")
             elif seat_info.get("error"):
                 # This will occur when "type" == "soldout".
                 continue
             
-            hash_to_auditorium[hash_code] = seat_info["auditoriumId"]
+            try:
+                hash_to_auditorium[showtime["id"]] = seat_info["auditoriumId"]
+            except Exception as exc:
+                print(seat_info)
+                raise exc
             
     return hash_to_auditorium
