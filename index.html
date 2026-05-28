@@ -772,6 +772,8 @@
             function openShowtimePopup(showtime) {
                 var showtimeDetails = showtime.extendedProps["showtime"];
 
+                console.log(JSON.stringify(showtimeDetails));
+
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
@@ -781,6 +783,9 @@
 
                 var timeEl = document.createElement("div");
                 timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
+
+                var screenEl = document.createElement("div");
+                screenEl.innerHTML = `<i>Screen ${showtimeDetails["screen"]}</i>`
 
                 var rawFormatStr = showtimeDetails["format"];
                 var formatStr = `<p>${rawFormatStr}</p>`;
@@ -801,6 +806,9 @@
                 showtimeDetailsPopover.innerHTML = "";
                 showtimeDetailsPopover.appendChild(headerEl);
                 showtimeDetailsPopover.appendChild(timeEl);
+                if (showtimeDetails["screen"]?.length) {
+                    showtimeDetailsPopover.appendChild(screenEl);
+                }
                 showtimeDetailsPopover.appendChild(document.createElement("hr"));
                 showtimeDetailsPopover.appendChild(detailsEl);
                 showtimeDetailsPopover.showPopover();
