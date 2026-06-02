@@ -691,8 +691,6 @@
                 scheduleCalendar.setOption('slotMinTime', slotMinTime);
                 scheduleCalendar.setOption('slotMaxTime', slotMaxTime);
                 {% endif %}
-
-                showtimesCalendar.render();
             }
 
             function getListingConfig(showtimesCalendar) {
@@ -719,7 +717,7 @@
                 return {view: listingView, title: titleFormat, day: listDayFormat};
             }
 
-            function renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar) {
+            function renderScheduleCalendar(scheduleCalendar, showtimesCalendar) {
                 var listingConfig = getListingConfig(showtimesCalendar);
                 if (scheduleCalendar.view.type !== listingConfig["view"]) {
                     scheduleCalendar.changeView(listingConfig["view"]);
@@ -771,8 +769,6 @@
 
             function openShowtimePopup(showtime) {
                 var showtimeDetails = showtime.extendedProps["showtime"];
-
-                console.log(JSON.stringify(showtimeDetails));
 
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
@@ -948,6 +944,28 @@
                     });
             }
 
+            function renderShowtimesCalendar(viewName, showtimesCalendar, listingCalendar, scheduleCalendar) {
+                showtimesCalendar.batchRendering(function() {
+                    if (viewName !== undefined) {
+                        showtimesCalendar.changeView(viewName);
+                    }
+
+                    var endStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentEnd);
+                    var startStr = showtimesCalendar.formatIso(showtimesCalendar.view.currentStart);
+                    var theater = selectedTheater();
+
+                    resetMovieList();
+                    Promise.all([getShowtimes(theater, startStr, endStr), getVisibility(theater, startStr, endStr)])
+                        .then(([showtimesResult, visibilityResult]) => {
+                            clearCalendar(showtimesCalendar);
+                            loadShowtimesCallback(showtimesResult["showtimes"], visibilityResult["visibility"], showtimesCalendar, listingCalendar, scheduleCalendar);
+                            {% if allow_editing %}
+                            renderScheduleCalendar(scheduleCalendar, showtimesCalendar);
+                            {% endif %}
+                        });
+                });
+            }
+
             document.addEventListener('DOMContentLoaded', function() {
                 {% if allow_editing is none %}
                 if (getCookie("client_id") === null) {
@@ -969,26 +987,32 @@
                     nextDayThreshold: "03:00:00",
                     slotMinTime: '09:00:00',
                     fixedWeekCount: false,
-                    navLinks: true,
                     headerToolbar: {
                         left: 'prev,next',
                         center: 'title',
-                        right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                        right: 'month,week,day'
                     },
-                    datesSet: (dateInfo) => {
-                        var endStr = showtimesCalendar.formatIso(dateInfo.view.currentEnd);
-                        var startStr = showtimesCalendar.formatIso(dateInfo.view.currentStart);
-                        var theater = selectedTheater();
-
-                        resetMovieList();
-                        Promise.all([getShowtimes(theater, startStr, endStr), getVisibility(theater, startStr, endStr)])
-                            .then(([showtimesResult, visibilityResult]) => {
-                                clearCalendar(showtimesCalendar);
-                                loadShowtimesCallback(showtimesResult["showtimes"], visibilityResult["visibility"], showtimesCalendar, listingCalendar, scheduleCalendar);
-                                {% if allow_editing %}
-                                renderScheduleCalendar(scheduleCalendar, scheduleCalendarEl, showtimesCalendar);
-                                {% endif %}
-                            });
+                    customButtons: {
+                        month: {text: "month", click: () => renderShowtimesCalendar("dayGridMonth", showtimesCalendar, listingCalendar, scheduleCalendar)},
+                        week: {text: "week", click: () => renderShowtimesCalendar("timeGridWeek", showtimesCalendar, listingCalendar, scheduleCalendar)},
+                        day: {text: "day", click: () => renderShowtimesCalendar("timeGridDay", showtimesCalendar, listingCalendar, scheduleCalendar)},
+                        next: {
+                            click: () => {
+                                showtimesCalendar.next();
+                                renderShowtimesCalendar(undefined, showtimesCalendar, listingCalendar, scheduleCalendar);
+                            }
+                        },
+                        prev: {
+                            click: () => {
+                                showtimesCalendar.prev();
+                                renderShowtimesCalendar(undefined, showtimesCalendar, listingCalendar, scheduleCalendar);
+                            }
+                        }
+                    },
+                    navLinks: true,
+                    navLinkDayClick: (date) => {
+                        showtimesCalendar.gotoDate(date);
+                        renderShowtimesCalendar("timeGridDay", showtimesCalendar, listingCalendar, scheduleCalendar);
                     },
                     eventClick: (clickInfo) => {
                         {% if allow_editing %}
@@ -1132,6 +1156,7 @@
                     });
                 });
 
+                renderShowtimesCalendar("dayGridMonth", showtimesCalendar, listingCalendar, scheduleCalendar);
             });
         </script>
     </head>
