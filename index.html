@@ -422,6 +422,16 @@
                         toggleEl.style.display = "none";
                     }
                 });
+
+                var accordionEl = document.getElementById(`${parentId}-accordion`);
+                if (accordionEl !== null) {
+                    var displayedChildren = Array.from(parentEl.children).filter((e) => e.style.display === "");
+                    if (displayedChildren?.length > 0) {
+                        accordionEl.style.removeProperty("display");
+                    } else {
+                        accordionEl.style.display = "none";
+                    }
+                }
             }
 
             function applyDisableFiltersToggle() {
@@ -897,7 +907,7 @@
                         });
                 })
 
-                var accordionButtonEl = Object.assign(document.createElement("button"), {className: "accordion"});
+                var accordionButtonEl = Object.assign(document.createElement("button"), {className: "accordion accordion-style"});
                 accordionButtonEl.appendChild(entryTitleEl);
                 accordionButtonEl.appendChild(entryDeleteEl);
                 accordionButtonEl.addEventListener("click", function() {
@@ -1156,6 +1166,14 @@
                     });
                 });
 
+                Array.from(document.getElementsByClassName("accordion")).forEach((accordionEl) => {
+                    accordionEl.addEventListener("click", function() {
+                        this.classList.toggle("active");
+                        var panel = this.nextElementSibling;
+                        panel.style.display = panel.style.display === "block" ? "none" : "block";
+                    });
+                });
+
                 renderShowtimesCalendar("dayGridMonth", showtimesCalendar, listingCalendar, scheduleCalendar);
             });
         </script>
@@ -1189,9 +1207,10 @@
                         <hr />
                         <div id="format-filter-toggles"></div>
                         <hr />
-                        <div id="language-filter-toggles"></div>
-                        <hr />
-                        <div id="program-filter-toggles"></div>
+                        <button id="language-filter-toggles-accordion" class="accordion filter-accordion"><div>&#x25BA;</div>Languages</button>
+                        <div id="language-filter-toggles" class="panel"></div>
+                        <button id="program-filter-toggles-accordion" class="accordion filter-accordion"><div>&#x25BA;</div>Programs</button>
+                        <div id="program-filter-toggles" class="panel"></div>
                     </div>
                     <hr />
                     <div id="movie-list">
