@@ -189,6 +189,8 @@ def gather_seat_info(showtimes):
             
             try:
                 hash_to_auditorium[showtime["id"]] = seat_info["auditoriumId"]
+            except TypeError as exc:
+                raise ValueError(f"SEAT INFO: {seat_info}")
             except Exception as exc:
                 print(seat_info)
                 raise exc
