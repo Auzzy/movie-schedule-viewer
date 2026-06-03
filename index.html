@@ -281,6 +281,8 @@
                     var formats = el.dataset.formats.split(",");
                     var languages = el.dataset.languages.split(",");
                     var programs = el.dataset.programs.split(",");
+                    var screens = el.dataset.screens.split(",");
+                    var attributes = formats.concat(languages).concat(programs).concat(screens);
                     var display = {visible: el.dataset.visible === "true", background_color: el.dataset.bgColor, text_color: el.dataset.textColor};
                     var details = {
                         first: el.dataset.first,
@@ -288,7 +290,8 @@
                         formats,
                         languages,
                         programs,
-                        ...Object.fromEntries(formats.concat(languages).concat(programs).map((attr) => [strToDatasetId(attr), el.dataset[strToDatasetId(attr)]]))
+                        screens,
+                        ...Object.fromEntries(attributes.map((attr) => [strToDatasetId(attr), el.dataset[strToDatasetId(attr)]]))
                     }
 
                     return [el.dataset.title, {display, details}];
@@ -306,10 +309,24 @@
             }
 
             function toggleId(label) {
-                return `${label.toLowerCase().replace(" ", "-")}-toggle`;
+                var raw = `${label.toLowerCase().replace(" ", "-")}-toggle`;
+                if (raw.codePointAt(0) >= 48 && raw.codePointAt(0) <= 57) {
+                    raw = `x${raw}`;
+                }
+                return raw;
             }
 
             function getFilters(moviesInfo) {
+                function screenCmp(one, two) {
+                    var oneKey = parseInt(/\d+/.exec(one));
+                    var twoKey = parseInt(/\d+/.exec(two));
+                    if (Number.isNaN(oneKey) || Number.isNaN(twoKey)) {
+                        return one.localeCompare(two);
+                    } else {
+                        return oneKey - twoKey;
+                    }
+                }
+
                 var newFormats = Array.from(new Set(Object.values(moviesInfo).map((info) => info["details"]["formats"]).flat()));
                 var oldFormats = Array.from(document.getElementById("format-filter-toggles").children).map((el) => el.dataset.label);
                 var formatFilters = newFormats.concat(oldFormats).toSorted().map((fmt) => {
@@ -340,6 +357,16 @@
                     };
                 });
 
+                var newScreens = Array.from(new Set(Object.values(moviesInfo).map((info) => info["details"]["screens"]).flat()));
+                var oldScreens = Array.from(document.getElementById("screen-filter-toggles").children).map((el) => el.dataset.label);
+                var screenFilters = newScreens.concat(oldScreens).toSorted(screenCmp).map((screen) => {
+                    return {
+                        label: screen,
+                        filterShowtimeF: (s) => s["screen"] === screen,
+                        filterMovieF: (mi) => mi["details"][strToDatasetId(screen)] === "true"
+                    };
+                });
+
                 var globalFilters = Object.entries(GLOBAL_FILTER_FUNCS).map(([label, {showtimeF, movieF, init}]) => {
                     return {
                         label: label,
@@ -349,7 +376,7 @@
                     };
                 });
 
-                return {globalFilters, formatFilters, languageFilters, programFilters};
+                return {globalFilters, formatFilters, languageFilters, programFilters, screenFilters};
             }
 
             function applyRawShowtimeFilters(showtimes, visibility) {
@@ -361,6 +388,9 @@
                     .map((el) => el.dataset.label)
                     .concat("UNKNOWN");
                 var enabledPrograms = Array.from(document.getElementById("program-filter-toggles").children)
+                    .filter((el) => toggleIsChecked(el.id))
+                    .map((el) => el.dataset.label);
+                var enabledScreens = Array.from(document.getElementById("screen-filter-toggles").children)
                     .filter((el) => toggleIsChecked(el.id))
                     .map((el) => el.dataset.label);
 
@@ -375,6 +405,7 @@
                         && enabledFormats.includes(showtime["format"])
                         && enabledLanguages.includes(showtime["language"])
                         && (!showtime["programs"]?.length || showtime["programs"].some((p) => enabledPrograms.includes(p)))
+                        && (showtime["screen"] === null || enabledScreens.includes(showtime["screen"]))
                         && globalFilters.every((filterShowtimesFunc) => filterShowtimesFunc(showtime));
                 });
             }
@@ -385,9 +416,9 @@
 
             function updateEnabledFilters() {
                 var moviesInfo = reloadMoviesInfo();
-                var {formatFilters, languageFilters, programFilters} = getFilters(moviesInfo);
+                var {formatFilters, languageFilters, programFilters, screenFilters} = getFilters(moviesInfo);
 
-                var filters = formatFilters.concat(languageFilters).concat(programFilters);
+                var filters = formatFilters.concat(languageFilters).concat(programFilters).concat(screenFilters);
                 filters.forEach(({label, filterMovieF}) => {
                     var switchEl = document.getElementById(toggleId(label)).querySelector(".switch");
                     var filteredMovies = Object.values(moviesInfo).filter((info) => filterMovieF(info) && info["display"]["visible"])
@@ -466,12 +497,13 @@
 
             function createFilters(showtimesCalendar, listingCalendar) {
                 var moviesInfo = reloadMoviesInfo();
-                var {globalFilters, formatFilters, languageFilters, programFilters} = getFilters(moviesInfo);
+                var {globalFilters, formatFilters, languageFilters, programFilters, screenFilters} = getFilters(moviesInfo);
 
                 createTogglesByType("global-filter-toggles", globalFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("format-filter-toggles", formatFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("language-filter-toggles", languageFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("program-filter-toggles", programFilters, showtimesCalendar, listingCalendar, moviesInfo);
+                createTogglesByType("screen-filter-toggles", screenFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createDisableFiltersToggle(showtimesCalendar);
             }
 
@@ -572,6 +604,9 @@
 
             function strToDatasetId(str) {
                 var replaced = str.replace(/-/g, " ").replace(/:/g, " ").replace(/\s+/g, ' ');
+                if (replaced.codePointAt(0) >= 48 && replaced.codePointAt(0) <= 57) {
+                    replaced = `x${replaced}`;
+                }
                 return replaced.split(" ").map((w, i) => i === 0 ? w.toLowerCase() : (w.at(0).toUpperCase() + w.slice(1).toLowerCase())).join("");
             }
 
@@ -594,6 +629,11 @@
                 details["programs"].forEach((programLabel) => {
                     var datasetProgram = strToDatasetId(programLabel);
                     entry.dataset[datasetProgram] = "true";
+                });
+                entry.dataset.screens = details["screens"].toSorted().join(",");
+                details["screens"].filter((item) => item !== null).forEach((screenLabel) => {
+                    var datasetLanguage = strToDatasetId(screenLabel);
+                    entry.dataset[datasetLanguage] = "true";
                 });
                 entry.dataset.first = details["first"];
                 entry.dataset.last = details["last"];
@@ -655,6 +695,7 @@
                             formats: Array.from(new Set(titleShowtimes.map((s) => s["format"]))),
                             languages: Array.from(new Set(titleShowtimes.map((s) => s["language"]))),
                             programs: Array.from(new Set(titleShowtimes.map((s) => s["programs"]).flat())),
+                            screens: Array.from(new Set(titleShowtimes.map((s) => s["screen"]))),
                             first: sortedTimes[0],
                             last: sortedTimes.at(-1),
                             display: {
@@ -1211,6 +1252,8 @@
                         <div id="language-filter-toggles" class="panel"></div>
                         <button id="program-filter-toggles-accordion" class="accordion filter-accordion"><div>&#x25BA;</div>Programs</button>
                         <div id="program-filter-toggles" class="panel"></div>
+                        <button id="screen-filter-toggles-accordion" class="accordion filter-accordion"><div>&#x25BA;</div>Screens</button>
+                        <div id="screen-filter-toggles" class="panel"></div>
                     </div>
                     <hr />
                     <div id="movie-list">
