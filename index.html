@@ -275,13 +275,17 @@
             }
 
             function reloadMoviesInfo() {
+                function split(string) {
+                    return string === "" ? [] : string.split(",");
+                }
+
                 var movieList = getMovieListEntries("movie-list");
 
                 return Object.fromEntries(movieList.map((el) => {
-                    var formats = el.dataset.formats.split(",");
-                    var languages = el.dataset.languages.split(",");
-                    var programs = el.dataset.programs.split(",");
-                    var screens = el.dataset.screens.split(",");
+                    var formats = split(el.dataset.formats);
+                    var languages = split(el.dataset.languages);
+                    var programs = split(el.dataset.programs);
+                    var screens = split(el.dataset.screens);
                     var attributes = formats.concat(languages).concat(programs).concat(screens);
                     var display = {visible: el.dataset.visible === "true", background_color: el.dataset.bgColor, text_color: el.dataset.textColor};
                     var details = {
