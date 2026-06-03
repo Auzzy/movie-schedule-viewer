@@ -128,13 +128,14 @@ def _program_adjustments(attributes, programs):
     _move(attributes, programs, "Special Screenings")
     _move(attributes, programs, "Double Feature")
     _move(attributes, programs, "New Release")
+    _move(attributes, programs, "Outdoors")
 
     if "OnStage at the Coolidge" in programs:
         attributes.append("Live Performance")
     if "Coolidge Education" in programs:
         attributes.append("Lecture")
-    if "Coolidge at the Speedway" in programs:
-        attributes.append("Outside")
+    if "Outdoors" in programs:
+        attributes.append("Standard")
     if "Digital Restoration" in programs and "New Release" in programs:
         programs.remove("New Release")
 
@@ -144,8 +145,6 @@ def _parse_format(raw_attributes):
         return "Live Performance"
     elif "lecture" in attributes:
         return "Lecture"
-    elif "outside" in attributes:
-        return "Outside"
     elif "70mm" in attributes:
         return "70mm"
     elif "35mm" in attributes:
