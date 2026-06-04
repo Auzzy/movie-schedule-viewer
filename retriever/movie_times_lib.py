@@ -110,14 +110,14 @@ def db_showtime_updates(date_range, schedule):
 
     deleted_showtimes = []
     for showtime in db.load_showtimes(*aware_date_range, theater=schedule.theater):
-        old_showtime = showtime.copy()
+        showtime_dict = dict(showtime)
         if theater["parser"] == "fandango_json":
             # Screens for these showtimes aren't populated until later, so they're deleted separately.
-            old_showtime.pop("screen", None)
-            old_showtime.pop("extra_properties", None)
+            showtime_dict.pop("screen", None)
+        showtime_dict.pop("extra_properties", None)
 
-        if now < old_showtime['start_time'] and old_showtime not in current_showtimes:
-            deleted_showtimes.append(showtime)
+        if now < showtime_dict['start_time'] and showtime_dict not in current_showtimes:
+            deleted_showtimes.append(showtime_dict)
 
     db.delete_showtimes(deleted_showtimes)
 
