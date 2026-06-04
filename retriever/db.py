@@ -36,6 +36,8 @@ def _cast_value(value):
         return json.dumps(value)
     elif isinstance(value, set):
         return json.dumps(sorted(value))
+    elif isinstance(value, dict):
+        return json.dumps(value)
     else:
         return value
 
@@ -60,6 +62,7 @@ def _read_showtimes_query(raw_rows, *, clean=True):
     for row in raw_rows:
         row_dict = dict(row)
         row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
+        row_dict["extra_properties"] = json.loads(row["extra_properties"] or "{}")
         if clean:
             del row_dict["create_time"]
         rows.append(row_dict)
@@ -108,7 +111,7 @@ def store_showtimes(schedule, *, clean=True):
 
     key_field_names = ("theater", "title", "format", "language", "start_time")
     key_field_names_str = ", ".join(key_field_names)
-    field_names = key_field_names + ("end_time", "programs", "screen", "create_time", "id")
+    field_names = key_field_names + ("end_time", "programs", "screen", "create_time", "id", "extra_properties")
     field_names_str = ", ".join(field_names)
 
     recheck = []
@@ -125,7 +128,8 @@ def store_showtimes(schedule, *, clean=True):
                 json.dumps(sorted(showing.programs)),
                 showing.screen,
                 create_time,
-                showing.id
+                showing.id,
+                json.dumps(showing.extra_properties)
             )
 
             cur.execute(f"""
@@ -137,7 +141,18 @@ def store_showtimes(schedule, *, clean=True):
             )
 
             if not cur.fetchone():
-                recheck.append(dict(zip(field_names, field_values)))
+                showing_dict = dict(zip(field_names, field_values))
+
+                update_field_where_str = " and ".join([f"{field} = {_PH}" for field in key_field_names])
+                update_field_values = (json.dumps(showing.extra_properties), ) + tuple([_cast_value(showing_dict[field]) for field in key_field_names])
+                cur.execute(f"""
+                    UPDATE showtimes
+                    SET extra_properties = {_PH}
+                    WHERE {update_field_where_str}""",
+                    update_field_values
+                )
+
+                recheck.append(showing_dict)
 
     db.commit()
 
@@ -183,16 +198,15 @@ def delete_showtimes(showtimes_dicts):
     for showtime in showtimes_dicts:
         delete_field_names = ("id", "theater", "title", "format", "language", "programs", "start_time")
         delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
-        delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
-        delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
+        delete_field_values = tuple([_cast_value(showtime[field]) for field in delete_field_names])
         cur.execute(f"DELETE FROM showtimes WHERE {delete_field_where_str}", delete_field_values)
 
-        new_insert_field_names = ("end_time", )
+        new_insert_field_names = ("end_time", "extra_properties")
         if "screen" in showtime:
             new_insert_field_names += ("screen", )
         insert_field_names = delete_field_names + new_insert_field_names
         insert_field_names_str = ", ".join(insert_field_names)
-        insert_field_values = delete_field_values + tuple([showtime[field] for field in new_insert_field_names])
+        insert_field_values = delete_field_values + tuple([_cast_value(showtime[field]) for field in new_insert_field_names])
         cur.execute(f"""
             INSERT INTO deleted_showtimes({insert_field_names_str}, delete_time)
             VALUES ({', '.join([_PH] * len(insert_field_names))}, {_PH})""",
@@ -208,7 +222,8 @@ def update_showtime_screens(hash_to_auditorium):
     cur = db.cursor()
     
     for hash_code, auditorium in hash_to_auditorium.items():
-        cur.execute(f"UPDATE showtimes SET screen = {_PH} WHERE id = {_PH}", (auditorium, hash_code))
+        hash_code_param = f"%{hash_code}%"
+        cur.execute(f"UPDATE showtimes SET screen = {_PH} WHERE extra_properties like {_PH}", (auditorium, hash_code_param))
 
     db.commit()
     db.close()
@@ -229,6 +244,7 @@ def load_deleted_showtimes_by_deletion_time(first_delete_time, last_delete_time,
     for row in cur.fetchall():
         row_dict = dict(row)
         row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
+        row_dict["extra_properties"] = json.loads(row["extra_properties"] or "{}")
         if clean:
             del row_dict["delete_time"]
             del row_dict["id"]
@@ -283,7 +299,8 @@ def load_schedule(first_time, last_time, *, client_id):
     rows = []
     for row in cur.fetchall():
         row_dict = dict(row)
-        row_dict["programs"] = json.loads(row["programs"] or "[]")
+        row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
+        row_dict["extra_properties"] = json.loads(row["extra_properties"] or "{}")
         rows.append(row_dict)
     return rows
 
@@ -292,7 +309,7 @@ def add_to_schedule(showtime, *, client_id):
     cur = db.cursor()
 
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    field_names = ("id", "theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "create_time", "client")
+    field_names = ("id", "theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "extra_properties", "create_time", "client")
     field_names_str = ", ".join(field_names)
     field_values = (
         showtime["id"],
@@ -304,6 +321,7 @@ def add_to_schedule(showtime, *, client_id):
         json.dumps(sorted(showtime["programs"])),
         showtime["start_time"],
         showtime["end_time"],
+        json.dumps(showtime["extra_properties"]),
         create_time,
         client_id
     )
@@ -514,6 +532,7 @@ def _init_db():
         programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
+        extra_properties TEXT,
         create_time TEXT NOT NULL,
         PRIMARY KEY(theater, title, format, language, start_time)
     )""")
@@ -531,6 +550,7 @@ def _init_db():
         programs TEXT,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
+        extra_properties TEXT,
         delete_time TEXT NOT NULL
     )""")
 
@@ -552,6 +572,7 @@ def _init_db():
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         create_time TEXT NOT NULL,
+        extra_properties TEXT,
         client TEXT NOT NULL,
         PRIMARY KEY(theater, title, format, language, start_time, client)
     )""")
