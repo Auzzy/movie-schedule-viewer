@@ -157,6 +157,12 @@ def _parse_format(raw_attributes):
 def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dict):
     schedule = DaySchedule(THEATER_NAME, day)
     for movie_info in page.find_all(class_="film-card"):
+        part_of_package_el = movie_info.find(class_="view-part-of-package-title")
+        if part_of_package_el.get_text(strip=True):
+            # These are generally multi-week classes, meaning you buy them as a
+            # block, not individually. As such, they share an ID.
+            continue
+
         details = movie_info.find(class_="film-card__detail")
         name = details.find(class_="film-card__link").get_text(strip=True)
         runtime_el = details.find(class_="film-card__runtime")
@@ -168,20 +174,21 @@ def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dic
         attrib_chip_parent = movie_info.find(class_="view-film-event-type-link")
         attributes = [a.get_text(strip=True) for a in attrib_chip_parent.find_all(class_="film-program__title")] if attrib_chip_parent else []
 
-        programs = []
+        raw_programs = []
         program_chip_parent = movie_info.find(class_="view-program-taxonomy-link")
         if program_chip_parent:
             for anchor in program_chip_parent.find_all(class_="film-program__link"):
                 path = anchor.get("href", "").replace("/programs", "")
                 chip_label = anchor.find(class_="film-program__title").get_text(strip=True)
-                programs.append(signature_programs_dict.get(path, chip_label))
+                raw_programs.append(signature_programs_dict.get(path, chip_label))
 
-        _program_adjustments(attributes, programs)
+        _program_adjustments(attributes, raw_programs)
         _update_projection_specifics_cache(attributes, movie_info, name, tzname)
         if not attributes:
             attributes.append("Standard")
 
         for showing_el in movie_info.find_all(class_="showtime-ticket__button"):
+            programs = raw_programs.copy()
             qs_dict = parse_qs(urlsplit(showing_el["href"]).query)
             id_ = (qs_dict.get("evtinfo") or qs_dict["guid"])[0]
 
