@@ -52,7 +52,7 @@ def _load_ids(page, extra_info_dict):
                 name = showtime_entry["name"]
                 showtime = datetime.fromisoformat(showtime_entry["startDate"])
                 key = (showtime.date(), showtime.time())
-                if "name" in extra_info_dict:
+                if name in extra_info_dict:
                     extra_info_dict[name]["showtimes"].setdefault(key, {})["id"] = id_
                 else:
                     extra_info_dict[name] = {"showtimes": {key: {"id": id_}}}
