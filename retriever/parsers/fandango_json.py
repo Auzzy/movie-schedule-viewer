@@ -86,9 +86,14 @@ def _load_schedule(showtimes_json, theater_info):
                 fmt = "Dolby"
                 language = None
 
+            # TODO: If the showtime is not on sale, its hash should be omitted, so we don't try to get its screen. But
+            # I need to investigate the possible values of the showtime "type" field. I think "restricted" means
+            # they're not for sale, and "soldout" means they're sold out. "available" should mean they're on sale, and
+            # thus querying for the screen is useful.
             for showtime in showtimes_listing["showtimes"]:
-                id_ = showtime["showtimeHashCode"]
-                movie.add_raw_showing(id_, showtime["date"], day, tzname, fmt, None, language, programs)
+                id_ = showtime["id"]
+                hash_ = showtime["showtimeHashCode"]
+                movie.add_raw_showing(id_, showtime["date"], day, tzname, fmt, None, language, programs, hash=hash_)
 
     return schedule
 
@@ -170,6 +175,9 @@ def get_tzname(theater_code):
 
 
 def _retrieve_seats(showtime_hash_code):
+    if not showtime_hash_code:
+        return {}
+
     url = f"https://www.fandango.com/napi/seatMap/{showtime_hash_code}"
     return _request_fandango(url)
 
@@ -177,24 +185,27 @@ def _retrieve_seats(showtime_hash_code):
 def gather_seat_info(showtimes):
     hash_to_auditorium = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_hash = {executor.submit(_retrieve_seats, showtime["id"]): showtime for showtime in showtimes}
+        future_to_hash = {executor.submit(_retrieve_seats, showtime["extra_properties"].get("hash")): showtime for showtime in showtimes}
         for future in concurrent.futures.as_completed(future_to_hash):
             showtime = future_to_hash[future]
             try:
                 seat_info = future.result()
             except Exception as exc:
-                print(f'{showtime["id"]} generated an exception: {exc}')
+                # TODO: Switch this to ID if that field proves stable.
+                print(f'{showtime["extra_properties"].get("hash")} generated an exception: {exc}')
 
-            if isinstance(seat_info, list):
+            if not seat_info:
+                continue
+            elif isinstance(seat_info, list):
                 if any(payload.get("id") in SEAT_INFO_ERROR_CODES for payload in seat_info):
                     continue
                 print(f"UNKNOWN: {showtime['title']} @ {showtime['start_time']}: {seat_info}")
             elif seat_info.get("error"):
-                # This will occur when "type" == "soldout".
+                # This may occur when "type" == "soldout".
                 continue
             
             try:
-                hash_to_auditorium[showtime["id"]] = seat_info["auditoriumId"]
+                hash_to_auditorium[showtime["extra_properties"]["hash"]] = seat_info["auditoriumId"]
             except TypeError as exc:
                 raise ValueError(f"SEAT INFO: {seat_info}")
             except Exception as exc:
