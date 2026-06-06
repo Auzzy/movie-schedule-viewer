@@ -1,8 +1,17 @@
 import calendar
+import json
 import os
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+
+
+class JsonSetEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return super().default(obj)
+
 
 def offset_timezone(tzname):
     """Crafts the offset version of a timezone.

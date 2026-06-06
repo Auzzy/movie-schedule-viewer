@@ -47,9 +47,6 @@
         "schedule": "0 17 * * *"
     }, {
         "path": "/gather-fandango-auditoriums/AMC%20Methuen",
-        "schedule": "0 20 * * 2"
-    }, {
-        "path": "/gather-fandango-auditoriums/AMC%20Methuen",
         "schedule": "0 4 * * *"
     }, {
         "path": "/gather-fandango-auditoriums/AMC%20Boston%20Common",

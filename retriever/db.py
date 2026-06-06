@@ -92,12 +92,11 @@ def load_showtimes_by_create_time(first_create_time, last_create_time):
     db = _connect()
     cur = db.cursor()
 
-
     cur.execute(f"""
         SELECT *
         FROM showtimes s
         WHERE s.create_time{_DATETIME} >= {_PH} AND s.create_time{_DATETIME} <= {_PH}""",
-        (first_create_time, last_create_time)
+        (first_create_time.isoformat(), last_create_time.isoformat())
     )
 
     return _read_showtimes_query(cur.fetchall())

@@ -4,7 +4,8 @@ import json
 import os
 import traceback
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from functools import wraps
 
 from ical.calendar import Calendar
 from ical.calendar_stream import IcsCalendarStream
@@ -17,6 +18,18 @@ from retriever.schedule import Filter, FullSchedule, ParseError
 from retriever.utils import date_ranges, date_range_to_str, get_days_to_scan, group_dict_by, group_obj_by, offset_timezone
 
 MAILTRAP_EMAIL_SIZE_LIMIT = 10485760
+
+
+def task(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+            return True
+        except Exception as exc:
+            send_error_email(exc)
+            return False
+    return wrapper
 
 def _build_attachment(content, filename, *, encoding="utf-8"):
     content = base64.b64encode(content.encode(encoding))
@@ -126,39 +139,35 @@ def db_showtime_updates(date_range, schedule):
     return deleted_showtimes
 
 
+@task
 def send_watchlist_notification():
     last_time = datetime.now()
 
-    try:
-        first_time = db.last_successful_task_run(db.Task.WATCHLIST_NOTIFICATIONS) or (last_time - timedelta(days=365))
+    first_time = db.last_successful_task_run(db.Task.WATCHLIST_NOTIFICATIONS) or (last_time - timedelta(days=365))
 
-        stored_showings = db.load_showtimes_by_create_time(first_time, last_time)
+    stored_showings = db.load_showtimes_by_create_time(first_time, last_time)
 
-        showdates_by_title = defaultdict(lambda: defaultdict(set))
-        for showing in stored_showings:
-            showdate = datetime.fromisoformat(showing["start_time"]).date()
-            showdates_by_title[showing["title"]][showing["theater"]].add(showdate)
+    showdates_by_title = defaultdict(lambda: defaultdict(set))
+    for showing in stored_showings:
+        showdate = datetime.fromisoformat(showing["start_time"]).date()
+        showdates_by_title[showing["title"]][showing["theater"]].add(showdate)
 
-        watched = db.load_all_watchlists()
-        for client_id, entries in group_dict_by(watched, "client").items():
-            lines = []
-            for entry in entries:
-                title = entry["title"]
-                showdates_by_theater = showdates_by_title.get(title, {})
-                if showdates_by_theater:
-                    lines.append(f"Showings added for {title}:")
-                    for theater, showdates in showdates_by_theater.items():
-                        showdate_ranges = date_ranges(showdates)
-                        showdates_str = ", ".join(date_range_to_str(dr) for dr in showdate_ranges)
-                        lines.append(f"- {theater}: {showdates_str}")
+    watched = db.load_all_watchlists()
+    for client_id, entries in group_dict_by(watched, "client").items():
+        lines = []
+        for entry in entries:
+            title = entry["title"]
+            showdates_by_theater = showdates_by_title.get(title, {})
+            if showdates_by_theater:
+                lines.append(f"Showings added for {title}:")
+                for theater, showdates in showdates_by_theater.items():
+                    showdate_ranges = date_ranges(showdates)
+                    showdates_str = ", ".join(date_range_to_str(dr) for dr in showdate_ranges)
+                    lines.append(f"- {theater}: {showdates_str}")
 
-            if lines:
-                msg = "\n".join(lines)
-                _send_email("Watchlist notification", msg, receiver=None)
-        return True
-    except Exception as exc:
-        send_error_email(exc)
-        return False
+        if lines:
+            msg = "\n".join(lines)
+            _send_email("Watchlist notification", msg, receiver=None)
 
 def _true_deletion_filter(deleted_showtimes, current_showtimes):
     def _drop_key(adict, key):
@@ -176,6 +185,7 @@ def _true_deletion_filter(deleted_showtimes, current_showtimes):
 
     return filtered_deleted_showtimes
 
+@task
 def send_deletion_report():
     def _start_range(showtimes):
         time_strs = sorted([s["start_time"] for s in showtimes])
@@ -183,16 +193,15 @@ def send_deletion_report():
         end = datetime.fromisoformat(time_strs[-1]).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
         return start, end
 
-    try:
-        last_time = datetime.now()
-        first_time = db.last_successful_task_run(db.Task.DELETION_REPORT) or (last_time - timedelta(days=365))
+    last_time = datetime.now()
+    first_time = db.last_successful_task_run(db.Task.DELETION_REPORT) or (last_time - timedelta(days=365))
 
-        deleted_showtimes_by_theater = group_dict_by(db.load_deleted_showtimes_by_deletion_time(first_time, last_time), "theater")
-        filtered_deleted_showtimes = []
-        for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
-            deleted_showtimes = [{**s, "programs": list(s.get("programs", set()))} for s in deleted_showtimes]
-            theater_showtimes = db.load_showtimes(*_start_range(deleted_showtimes), theater=theater)
-            filtered_deleted_showtimes.extend(_true_deletion_filter(deleted_showtimes, theater_showtimes))
+    deleted_showtimes_by_theater = group_dict_by(db.load_deleted_showtimes_by_deletion_time(first_time, last_time), "theater")
+    filtered_deleted_showtimes = []
+    for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
+        deleted_showtimes = [{**s, "programs": list(s.get("programs", set()))} for s in deleted_showtimes]
+        theater_showtimes = db.load_showtimes(*_start_range(deleted_showtimes), theater=theater)
+        filtered_deleted_showtimes.extend(_true_deletion_filter(deleted_showtimes, theater_showtimes))
 
         if not filtered_deleted_showtimes:
             return True
@@ -209,9 +218,18 @@ def send_deletion_report():
             msg = "Deletion report attached" + (f" ({idx} / {len(chunks)})" if len(chunks) > 1 else "")
             _send_email(subject, msg,  attachments=[deleted_attachment])
         return True
-    except Exception as exc:
-        send_error_email(exc)
-        return False
+
+    chunk_size = 20000
+    chunks = [filtered_deleted_showtimes[idx:idx + chunk_size] for idx in range(0, len(filtered_deleted_showtimes), chunk_size)]
+
+    for idx, showtimes_chunk in enumerate(chunks, start=1):
+        deleted_showtimes_json = "[\n" + ",\n".join([f"  {json.dumps(s, sort_keys=True)}" for s in showtimes_chunk]) + "\n]"
+        filename = f"deleted-{idx}.json" if len(chunks) > 1 else "deleted.json"
+        deleted_attachment = _build_attachment(deleted_showtimes_json, filename)
+
+        subject = f"Schedule Updater Deletion Report ({date_range_to_str([first_time, last_time])})"
+        msg = "Deletion report attached" + (f" ({idx} / {len(chunks)})" if len(chunks) > 1 else "")
+        _send_email(subject, msg,  attachments=[deleted_attachment])
 
 
 def send_error_email(exc):
@@ -239,19 +257,26 @@ def add_theater_from_search(query, *, name=None, rank=None):
             print(f"- {result['fullname']}")
 
 
-def gather_fandango_screens(theater):
-    try:
-        first_time = datetime.now().replace(microsecond=0)
-        last_time = first_time + timedelta(days=get_days_to_scan())
+def _gather_fandango_screens(showtimes):
+    hash_to_auditorium = fandango_json.gather_seat_info(showtimes)
+    db.update_showtime_screens(hash_to_auditorium)
 
-        fandango_theaters = [theater["name"] for theater in db.get_theaters(clean=False) if theater["parser"] == "fandango_json"]
-        if theater not in fandango_theaters:
-            raise ValueError(f"{theater} is not one of: {fandango_theaters.join(', ')}.")
 
-        showtimes = db.load_showtimes(first_time, last_time, theater)
-        hash_to_auditorium = fandango_json.gather_seat_info(showtimes)
-        db.update_showtime_screens(hash_to_auditorium)
-        return True
-    except Exception as exc:
-        send_error_email(exc)
-        return False
+def gather_fandango_screens_new_showtimes(first_create_time):
+    last_create_time = datetime.now(timezone.utc)
+
+    showtimes = db.load_showtimes_by_create_time(first_create_time, last_create_time)
+    _gather_fandango_screens(showtimes)
+
+
+@task
+def gather_fandango_screens_by_theater(theater):
+    first_time = datetime.now().replace(microsecond=0)
+    last_time = first_time + timedelta(days=get_days_to_scan())
+
+    fandango_theaters = [theater["name"] for theater in db.get_theaters(clean=False) if theater["parser"] == "fandango_json"]
+    if theater not in fandango_theaters:
+        raise ValueError(f"{theater} is not one of: {fandango_theaters.join(', ')}.")
+
+    showtimes = db.load_showtimes(first_time, last_time, theater)
+    _gather_fandango_screens(showtimes)

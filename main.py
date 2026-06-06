@@ -18,8 +18,8 @@ from pydantic import BaseModel
 
 from retriever import db
 from retriever.movie_times_lib import collect_schedule, db_showtime_updates, \
-        gather_fandango_screens, send_error_email, send_deletion_report, \
-        send_watchlist_notification
+        gather_fandango_screens_by_theater, gather_fandango_screens_new_showtimes, \
+        send_error_email, send_deletion_report, send_watchlist_notification
 from retriever.schedule import Filter, FullSchedule
 from retriever.utils import get_days_to_scan, offset_timezone
 
@@ -222,6 +222,8 @@ def scan():
                 db.store_showtimes(schedule)
                 db_showtime_updates(date_range, schedule)
 
+        gather_fandango_screens_new_showtimes(start_time)
+
         print(f"Showtime scan completed at {datetime.now(timezone.utc)} UTC")
         success = True
     except Exception as exc:
@@ -255,7 +257,7 @@ def run_gather_fandango_screens(theater: str):
 
     print(f"Gather {theater} auditoriums starting at {start_time} UTC")
 
-    success = gather_fandango_screens(theater)
+    success = gather_fandango_screens_by_theater(theater)
 
     end_time = datetime.now(timezone.utc)
     db.log_task(db.Task.GATHER_FANDANGO_SCREENS, start_time, end_time, success)
