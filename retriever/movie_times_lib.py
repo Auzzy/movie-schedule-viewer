@@ -16,12 +16,14 @@ from retriever.parsers import brattle, coolidge, fandango_json, red_river, somer
 from retriever.schedule import Filter, FullSchedule, ParseError
 from retriever.utils import date_ranges, date_range_to_str, get_days_to_scan, group_dict_by, group_obj_by, offset_timezone
 
+MAILTRAP_EMAIL_SIZE_LIMIT = 10485760
 
 def _build_attachment(content, filename, *, encoding="utf-8"):
-    return Attachment(
-        content=base64.b64encode(content.encode(encoding)),
-        filename=filename
-    )
+    content = base64.b64encode(content.encode(encoding))
+    if len(content) > MAILTRAP_EMAIL_SIZE_LIMIT:
+        raise ValueError("The size of the attachment exceeds MailTrap's size limit.")
+
+    return Attachment(content=content, filename=filename)
 
 def _ics_attachments(schedules):
     attachments = []
@@ -195,10 +197,17 @@ def send_deletion_report():
         if not filtered_deleted_showtimes:
             return True
 
-        deleted_showtimes_json = "[\n" + ",\n".join([f"  {json.dumps(s, sort_keys=True)}" for s in filtered_deleted_showtimes]) + "\n]"
-        deleted_attachment = _build_attachment(deleted_showtimes_json, "deleted.json")
+        chunk_size = 20000
+        chunks = [filtered_deleted_showtimes[idx:idx + chunk_size] for idx in range(0, len(filtered_deleted_showtimes), chunk_size)]
 
-        _send_email("Schedule Updater Deletion Report", "Deletion report attached",  attachments=[deleted_attachment])
+        for idx, showtimes_chunk in enumerate(chunks, start=1):
+            deleted_showtimes_json = "[\n" + ",\n".join([f"  {json.dumps(s, sort_keys=True)}" for s in showtimes_chunk]) + "\n]"
+            filename = f"deleted-{idx}.json" if len(chunks) > 1 else "deleted.json"
+            deleted_attachment = _build_attachment(deleted_showtimes_json, filename)
+
+            subject = f"Schedule Updater Deletion Report ({date_range_to_str([first_time, last_time])})"
+            msg = "Deletion report attached" + (f" ({idx} / {len(chunks)})" if len(chunks) > 1 else "")
+            _send_email(subject, msg,  attachments=[deleted_attachment])
         return True
     except Exception as exc:
         send_error_email(exc)
