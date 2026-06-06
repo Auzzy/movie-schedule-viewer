@@ -10,6 +10,13 @@ from urllib.parse import urlencode
 
 from retriever.schedule import DaySchedule
 
+SEAT_INFO_ERROR_CODES = (
+    "ExpiredPerformance",  # shouldn't happen.
+    "PosCommunicationError",  # the movie is listed on Fandango, but not AMC, such as when it's unnanounced.
+    "ShowtimeNotFound", # indicates a defunct showtime that hasn't been updated by the scanner yet.
+    "PerformanceSoldOut",  # as it says on the tin.
+    "GeneralAdmissionShowtimeError"  # something about an event that's General Admission?
+)
 
 def _parse_language(attributes, theater):
     for attr in attributes:
@@ -173,14 +180,7 @@ def gather_seat_info(showtimes):
                 print(f'{showtime["id"]} generated an exception: {exc}')
 
             if isinstance(seat_info, list):
-                # - ExpiredPerformance - shouldn't happen.
-                # - PosCommunicationError - occurs when the movie is listed on
-                #   Fandango, but not AMC, such as when it's unnanounced.
-                # - ShowtimeNotFound - indicates a defunct showtime that hasn't
-                # been picked up by the scanner yet.
-                # - PerformanceSoldOut - Unsure. Happening on an unavailable
-                #   showtime.
-                if any(payload.get("id") in ("ExpiredPerformance", "PosCommunicationError", "ShowtimeNotFound", "PerformanceSoldOut") for payload in seat_info):
+                if any(payload.get("id") in SEAT_INFO_ERROR_CODES for payload in seat_info):
                     continue
                 print(f"UNKNOWN: {showtime['title']} @ {showtime['start_time']}: {seat_info}")
             elif seat_info.get("error"):
