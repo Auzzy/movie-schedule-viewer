@@ -96,16 +96,20 @@ def _request(url, headers=None):
 
 def _request_fandango(url):
     headers = {"referer": "https://www.fandango.com"}
-    return requests.get(url, headers=headers)
+    response = _request(url, headers=headers)
+    try:
+        return response.json()
+    except requests.JSONDecodeError as exc:
+        raise ValueError(f"Request to {url} did not return JSON. Got: {response.text}")
 
 def _retrieve_showtimes(theater_code, showdate):
     url = f"https://www.fandango.com/napi/theaterMovieShowtimes/{theater_code}?startDate={showdate.isoformat()}"
-    return _request_fandango(url).json()
+    return _request_fandango(url)
 
 def _search_theaters(name):
     search_param = urlencode({"search": name})
     search_url = f"https://www.fandango.com/napi/home/autocompleteDesktopSearch?{search_param}"
-    search_response = _request_fandango(search_url).json()
+    search_response = _request_fandango(search_url)
     return search_response["resultsByType"]["theaters"]["items"]
 
 def _get_timezone(latitude, longitude):
@@ -165,7 +169,7 @@ def get_tzname(theater_code):
 
 def _retrieve_seats(showtime_hash_code):
     url = f"https://www.fandango.com/napi/seatMap/{showtime_hash_code}"
-    return _request_fandango(url).json()
+    return _request_fandango(url)
 
 
 def gather_seat_info(showtimes):
