@@ -225,7 +225,7 @@
                 if (typeof toggleEl === "string") {
                     toggleEl = document.getElementById(toggleEl);
                 }
-                return toggleEl.querySelector("label input").checked;
+                return toggleEl === null ? undefined : toggleEl.querySelector("label input").checked;
             }
 
             function createToggleSlider(showtimesCalendar, id, toggleFilterShowtimesFunc) {
@@ -509,6 +509,13 @@
                 createTogglesByType("program-filter-toggles", programFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createTogglesByType("screen-filter-toggles", screenFilters, showtimesCalendar, listingCalendar, moviesInfo);
                 createDisableFiltersToggle(showtimesCalendar);
+
+                document.getElementById("show-past-toggle").addEventListener("click", function() {
+                    Array.from(document.getElementById("movie-list").querySelectorAll("[data-movie-list-entry]")).forEach((entryEl) => {
+                        var last = entryEl.dataset.last;
+                        entryEl.style.display = (toggleIsChecked("show-past-toggle") || dayjs(last).isAfter(dayjs().startOf("day"))) ? "block" : "none";
+                    });
+                });
             }
 
             function openListingClickHandler(event, showtimesCalendar, listingCalendar, showtimeFilter) {
@@ -681,8 +688,11 @@
                 buttonEl.style.background = details["display"]["visible"] ? details["display"]["bgColor"] : "white";
 
                 var parent = createMovieListParentEl(details["title"]);
+                parent.dataset.last = details["last"];
                 parent.appendChild(entry);
                 parent.appendChild(buttonEl);
+
+                parent.style.display = dayjs(details["last"]).isAfter(dayjs().startOf("day")) ? "block" : "none";
 
                 var sublistId = entry.dataset.visible == "true" ? "shown-movies" : "hidden-movies";
                 document.getElementById(sublistId).appendChild(parent);
