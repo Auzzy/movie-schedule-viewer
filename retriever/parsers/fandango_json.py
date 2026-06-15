@@ -201,6 +201,7 @@ def gather_seat_info(showtimes):
             except Exception as exc:
                 # TODO: Switch this to ID if that field proves stable.
                 print(f'{showtime["extra_properties"].get("hash")} generated an exception: {exc}')
+                continue
 
             if not seat_info:
                 continue
