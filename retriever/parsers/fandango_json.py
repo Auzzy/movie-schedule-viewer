@@ -91,15 +91,7 @@ def _load_schedule(showtimes_json, theater_info):
             # they're not for sale, and "soldout" means they're sold out. "available" should mean they're on sale, and
             # thus querying for the screen is useful.
             for showtime in showtimes_listing["showtimes"]:
-                try:
-                    id_ = showtime["id"]
-                except KeyError:
-                    print(day)
-                    print(name)
-                    print(showtimes_listing)
-                    print(showtime)
-                    raise
-
+                id_ = showtime.get("id")
                 hash_ = showtime["showtimeHashCode"]
                 movie.add_raw_showing(id_, showtime["date"], day, tzname, fmt, None, language, programs, hash=hash_)
 

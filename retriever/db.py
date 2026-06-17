@@ -109,6 +109,8 @@ def store_showtimes(schedule, *, clean=True):
     field_names = key_field_names + ("end_time", "programs", "screen", "create_time", "id", "extra_properties")
     field_names_str = ", ".join(field_names)
 
+    LOGS = []
+
     recheck = []
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     for movie in schedule.movies:
@@ -139,15 +141,22 @@ def store_showtimes(schedule, *, clean=True):
                 showing_dict = dict(zip(field_names, field_values))
 
                 update_field_where_str = " and ".join([f"{field} = {_PH}" for field in key_field_names])
-                update_field_values = (json.dumps(showing.extra_properties), showing.id) + tuple([_cast_value(showing_dict[field]) for field in key_field_names])
+                update_field_set_str = f"extra_properties = {_PH}" + (f", id = {_PH}" if showing.id else "")
+                update_field_base_values = (json.dumps(showing.extra_properties), ) + ((showing.id, ) if showing.id else ())
+                update_field_values = update_field_base_values + tuple([_cast_value(showing_dict[field]) for field in key_field_names])
+
+                LOGS.append(f"WHERE: {update_field_where_str}\nSET: {update_field_set_str}\nVALUES: {update_field_values}")
+
                 cur.execute(f"""
                     UPDATE showtimes
-                    SET extra_properties = {_PH}, id = {_PH}
+                    SET {update_field_set_str}
                     WHERE {update_field_where_str}""",
                     update_field_values
                 )
 
                 recheck.append(showing_dict)
+
+    print('\n'.join(LOGS))
 
     db.commit()
 
