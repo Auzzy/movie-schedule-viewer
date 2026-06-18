@@ -914,6 +914,7 @@
                 dropdownItemEl.appendChild(lastUpdatedEl);
 
                 var theaterOptionsEl = document.getElementById("theater-options");
+                theaterOptionsEl.style.width = "100%";
                 theaterOptionsEl.appendChild(dropdownItemEl);
 
                 return dropdownItemEl;
@@ -1030,6 +1031,25 @@
                         });
                 });
             }
+
+            function reorient(showtimesCalendar) {
+                var layoutEl = document.getElementById("layout");
+                if (window.innerWidth > 1000) {
+                    layoutEl.classList.remove("flexcolumn");
+                    layoutEl.style.flexDirection = "row";
+                    Array.from(layoutEl.children).forEach((colEl) => {
+                        Array.from(colEl.children).at(0).classList.add("flexcolumn");
+                    });
+                } else {
+                    showtimesCalendar.changeView("timeGridDay");
+                    layoutEl.classList.add("flexcolumn");
+                    layoutEl.style.flexDirection = "column";
+                    Array.from(layoutEl.children).forEach((colEl) => {
+                        Array.from(colEl.children).at(0).classList.remove("flexcolumn");
+                    });
+                }
+            }
+
 
             document.addEventListener('DOMContentLoaded', function() {
                 {% if allow_editing is none %}
@@ -1229,6 +1249,9 @@
                     });
                 });
 
+                reorient(showtimesCalendar);
+                window.onresize = () =>  reorient(showtimesCalendar);
+
                 renderShowtimesCalendar("dayGridMonth", showtimesCalendar, listingCalendar, scheduleCalendar);
             });
         </script>
@@ -1248,11 +1271,11 @@
             <div id="watchlist" style="overflow: auto; height: 85%"></div>
         </div>
         {% endif %}
-        <div style="display: flex;">
+        <div id="layout" style="display: flex; flex-direction: column;" class="flexcolumn">
             <div style="flex: 10%">
-                <div style="height: 98vh; overflow-y: scroll; overflow-x: hidden; scrollbar-width: none; margin-right: 25px">
-                    <div id="theater-dropdown" class="dropdown" style="margin-top: 20px;">
-                        <button id="theater-selected" class="dropdown-toggle"></button>
+                <div style="margin-right: 25px">
+                    <div id="theater-dropdown" class="dropdown" style="margin-top: 20px; width: 100%">
+                        <button id="theater-selected" class="dropdown-toggle" style="width: 100%;"></button>
                         <div id="theater-options" class="dropdown-menu"></div>
                     </div>
                     <hr />
@@ -1277,13 +1300,13 @@
                 </div>
             </div>
             <div style="flex: 75%; padding-right: 50px;">
-                <div style="height: 98vh; overflow-y: scroll; scrollbar-width: none">
+                <div>
                     <div id='showtimes-calendar'></div>
                 </div>
             </div>
             {% if allow_editing %}
             <div style="flex: 15%; padding-right: 10px;">
-                <div style="height: 98vh; overflow-y: scroll; scrollbar-width: none">
+                <div>
                     <div id='schedule-calendar'></div>
                 </div>
             </div>
