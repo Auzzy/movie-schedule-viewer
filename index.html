@@ -542,11 +542,8 @@
 
             function createMovieListOpenListingButton(showtimesCalendar, listingCalendar, showtimeFilter) {
                 var openListingEl = document.createElement('button');
-                openListingEl.style.cursor = "pointer";
-                openListingEl.style.backgroundColor = "transparent";
-                openListingEl.style.borderWidth = "1px";
+                openListingEl.classList.add("movielistbutton");
                 openListingEl.innerHTML = "&#x1f4c5";
-                openListingEl.style.maxHeight = "21px";
                 openListingEl.popoverTargetElement = document.getElementById("movie-showtime-listing");
                 openListingEl.addEventListener("click", (e) => {
                     return openListingClickHandler(e, showtimesCalendar, listingCalendar, showtimeFilter)
@@ -649,13 +646,8 @@
                 entry.dataset.first = details["first"];
                 entry.dataset.last = details["last"];
 
-                entry.style.display = "flex";
-                entry.style.alignItems = "center";
-                entry.style.border = `thin solid ${display["bgColor"]}`;
-                entry.style.borderRadius = "5px";
-                entry.style.margin = "5px";
-                entry.style.padding = "5px 50px 5px 5px";
-                entry.style.cursor = "pointer";
+                entry.classList.add("movielistentry");
+                entry.style.borderColor = display["bgColor"];
                 entry.dataset.visible = display["visible"].toString();
                 entry.dataset.bgColor = display["bgColor"];
                 entry.dataset.textColor = display["textColor"];
@@ -905,7 +897,7 @@
                 lastUpdatedTimeEl.dataset.iso = "";
 
                 var lastUpdatedEl = Object.assign(document.createElement("div"), {innerHTML: "Updated "});
-                Object.assign(lastUpdatedEl.style, {color: "gray", fontSize: "10px"});
+                Object.assign(lastUpdatedEl.style, {color: "gray", fontSize: "0.65em"});
                 lastUpdatedEl.appendChild(lastUpdatedTimeEl);
 
                 var dropdownItemEl = Object.assign(document.createElement("a"), {href: "#", className: "dropdown-item"});
@@ -955,6 +947,7 @@
 
                 var entryTitleEl = Object.assign(document.createElement("span"), {innerHTML: title});
                 entryTitleEl.style.float = "left";
+                entryTitleEl.style.maxWidth = "85%"
 
                 var entryDeleteEl = Object.assign(document.createElement("span"), {innerHTML: "&#x1F5D1"});
                 entryDeleteEl.style.float = "right";
@@ -1258,13 +1251,13 @@
             <div id='listing-calendar'></div>
         </div>
         {% if allow_editing %}
-        <div popover id="manage-watchlist-popover" style="width: 15%; height: 40%; padding: 10px; overflow: hidden">
+        <div popover id="manage-watchlist-popover" style="width: 15%; height: 75%; padding: 10px; overflow: hidden">
             <div style="text-align: center">
                 <input class="mytextbox" id="watchlist-input" type="text" placeholder="Enter release name..." style="width: 85%" />
                 <button class="mybtn" type="button" id="add-to-watchlist-button" title="Add to Watchlist">+</button>
             </div>
             <hr />
-            <div id="watchlist" style="overflow: auto; height: 85%"></div>
+            <div id="watchlist" style="overflow: auto; height: 75%"></div>
         </div>
         {% endif %}
         <div id="layout" style="display: flex;">
@@ -1300,6 +1293,7 @@
             </div>
             {% if allow_editing %}
             <div style="flex: 15%; padding-right: 10px;" class="flexcolumn">
+                <h1 style="margin-top: 0px; text-align: center;">Schedule</h1>
                 <div id="schedule-calendar"></div>
             </div>
             {% endif %}

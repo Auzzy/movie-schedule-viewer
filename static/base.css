@@ -13,12 +13,13 @@
 
 .mybtn {
     border: 1px solid transparent;
-    border-radius: 0.25em;
+    border-radius: 0.25rem;
     display: inline-block;
-    font-size: 1em;
+    font-size: 1rem;
     font-weight: 400;
     line-height: 1.5;
-    padding: 0.4em 0.65em;
+    padding: 0.4rem 0.65rem;
+    margin: 8px 0;
     text-align: center;
     user-select: none;
     vertical-align: middle;
@@ -39,6 +40,23 @@
   box-sizing: border-box;
 }
 
+.movielistentry {
+  display: flex;
+  align-items: center;
+  border-width: thin;
+  border-style: solid;
+  border-radius: 5px;
+  margin: 5px;
+  padding: 5px 50px 5px 5px;
+  cursor: pointer;
+}
+
+.movielistbutton {
+  cursor: pointer;
+  background-color: transparent;
+  border-width: 1px;
+}
+
 @media (max-width: 1000px) {
   #layout {
     height: 98dvh;
@@ -48,8 +66,68 @@
     scrollbar-width: none;
   }
 
+  .flexcolumn {
+    padding-bottom: 5%;
+  }
+
   body {
-    font-size: x-large;
+    font-size: xx-large;
+  }
+
+  .fc .fc-toolbar-title {
+    font-size: 42px;
+  }
+
+  .movielistentry {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .switch {
+    width: 54px;
+    height: 30.6px;
+  }
+  .slider:before {
+    height: 23.4px;
+    width: 23.4px;
+    left: 3.6px;
+    bottom: 3.6px;
+  }
+  input:checked + .slider:before {
+    -webkit-transform: translateX(23.4px);
+    -ms-transform: translateX(23.4px);
+    transform: translateX(23.4px);
+  }
+
+  #showtime-details {
+    min-width: 480px;
+    min-height: 360px;
+    max-height: 480px;
+  }
+
+  #movie-showtime-listing {
+    min-width: 680px;
+    max-height: 800px;
+  }
+
+  #manage-watchlist-popover {
+    min-width: 420px;
+    max-height: 480px;
+  }
+
+  .mybtn {
+    max-width: 36px;
+    max-height: 40px;
+  }
+
+  .accordion-style {
+    font-size: xx-large;
+  }
+
+.movielistbutton {
+    height: 40px;
+    width: 60px;
+    font-size: 26px;
   }
 }
 

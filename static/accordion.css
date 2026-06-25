@@ -22,6 +22,7 @@
 .filter-accordion {
     padding: 10px;
     border: 1px solid black;
+    font-size: 0.8em;
 }
 
 .filter-accordion > div {
