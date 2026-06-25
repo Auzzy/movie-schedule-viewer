@@ -1039,6 +1039,7 @@
             function reorient(showtimesCalendar) {
                 var layoutEl = document.getElementById("layout");
                 if (window.innerWidth > 1000) {
+                    showtimesCalendar.changeView("dayGridMonth");
                     layoutEl.classList.remove("flexcolumn");
                     layoutEl.style.flexDirection = "row";
                     Array.from(layoutEl.children).forEach((colEl) => {
@@ -1256,7 +1257,8 @@
                 reorient(showtimesCalendar);
                 window.onresize = () =>  reorient(showtimesCalendar);
 
-                renderShowtimesCalendar("dayGridMonth", showtimesCalendar, listingCalendar, scheduleCalendar);
+                // The initial view type is set in reorient().
+                renderShowtimesCalendar(undefined, showtimesCalendar, listingCalendar, scheduleCalendar);
             });
         </script>
     </head>
