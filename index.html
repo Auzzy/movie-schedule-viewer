@@ -1040,18 +1040,8 @@
                 var layoutEl = document.getElementById("layout");
                 if (window.innerWidth > 1000) {
                     showtimesCalendar.changeView("dayGridMonth");
-                    layoutEl.classList.remove("flexcolumn");
-                    layoutEl.style.flexDirection = "row";
-                    Array.from(layoutEl.children).forEach((colEl) => {
-                        Array.from(colEl.children).at(0).classList.add("flexcolumn");
-                    });
                 } else {
                     showtimesCalendar.changeView("timeGridDay");
-                    layoutEl.classList.add("flexcolumn");
-                    layoutEl.style.flexDirection = "column";
-                    Array.from(layoutEl.children).forEach((colEl) => {
-                        Array.from(colEl.children).at(0).classList.remove("flexcolumn");
-                    });
                 }
             }
 
@@ -1255,7 +1245,7 @@
                 });
 
                 reorient(showtimesCalendar);
-                window.onresize = () =>  reorient(showtimesCalendar);
+                window.onresize = () => reorient(showtimesCalendar);
 
                 // The initial view type is set in reorient().
                 renderShowtimesCalendar(undefined, showtimesCalendar, listingCalendar, scheduleCalendar);
@@ -1277,8 +1267,8 @@
             <div id="watchlist" style="overflow: auto; height: 85%"></div>
         </div>
         {% endif %}
-        <div id="layout" style="display: flex; flex-direction: column;" class="flexcolumn">
-            <div style="flex: 10%">
+        <div id="layout" style="display: flex;">
+            <div style="flex: 12%" class="flexcolumn">
                 <div style="margin-right: 25px">
                     <div id="theater-dropdown" class="dropdown" style="margin-top: 20px; width: 100%">
                         <button id="theater-selected" class="dropdown-toggle" style="width: 100%;"></button>
@@ -1305,16 +1295,12 @@
                     </div>
                 </div>
             </div>
-            <div style="flex: 75%; padding-right: 50px;">
-                <div>
-                    <div id='showtimes-calendar'></div>
-                </div>
+            <div style="flex: 73%; padding-right: 50px;" class="flexcolumn">
+                <div id="showtimes-calendar"></div>
             </div>
             {% if allow_editing %}
-            <div style="flex: 15%; padding-right: 10px;">
-                <div>
-                    <div id='schedule-calendar'></div>
-                </div>
+            <div style="flex: 15%; padding-right: 10px;" class="flexcolumn">
+                <div id="schedule-calendar"></div>
             </div>
             {% endif %}
         </div>
