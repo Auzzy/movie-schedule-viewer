@@ -61,7 +61,7 @@ def _load_schedules(page, extra_info_dict, tzname):
     _load_ids(page, extra_info_dict)
 
     schedules = {}
-    for movie_info in page.find_all(class_="film"):
+    for movie_info in page.find(id="sessionsByDateConent").find_all(class_="film"):
         name = _clean_name(movie_info.find(class_="title").get_text(strip=True))
         extra_info = extra_info_dict.get(name, {})
 
