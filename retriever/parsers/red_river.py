@@ -28,14 +28,17 @@ def _get_programs(movie_info):
             case "MM": programs.add("Member Monday")
             case "SE": programs.add("Special Event")
             case "OCAP": programs.add("Open Caption")
+            case "P&P": programs.add("Popcorn & Pacifiers")
+            case "ADV": pass
             case other: programs.add(other)
     
     return programs
 
 def _clean_name(name):
-    if name.endswith("Open Captions"):
-        name = name.rsplit("-", 1)[0]
-    return name.strip()
+    parts = name.rsplit("-", 1)
+    if len(parts) ==2 and parts[1].lower().strip() in ("open captions", "popcorn & pacifiers", "popcorn and pacifiers"):
+        name = parts[0].strip()
+    return name
 
 # When a showtime sells out, the link to purchase tickets is removed, so its ID
 # becomes unavailable. However, there's a JSON blob embedded at the bottom of
