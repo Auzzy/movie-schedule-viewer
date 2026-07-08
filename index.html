@@ -1204,6 +1204,7 @@
                     showTheatersOnHover();
                 });
 
+                {% if allow_editing %}
                 document.getElementById("add-to-watchlist-button").addEventListener("click", function() {
                     var watchlistInputEl = document.getElementById("watchlist-input");
                     var title = watchlistInputEl.value;
@@ -1228,6 +1229,7 @@
                         }
                     });
                 });
+                {% endif %}
 
                 Array.from(document.getElementsByClassName("accordion")).forEach((accordionEl) => {
                     accordionEl.addEventListener("click", function() {
