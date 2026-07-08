@@ -109,14 +109,14 @@ def request_visibility(theater: str, first_time: datetime, last_time: datetime, 
     visibility = _load_visibility(theater, first_time, last_time, client_id=client_id)
     return {"visibility": visibility}
 
-@app.put("/movies/{title}/hide")
+@app.put("/movies/{title:path}/hide")
 def request_hide_movie(title, client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
     db.hide_movie(title, client_id=client_id)
     return {}
 
-@app.put("/movies/{title}/show")
+@app.put("/movies/{title:path}/show")
 def request_show_movie(title, client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
