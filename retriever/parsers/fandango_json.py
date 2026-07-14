@@ -30,6 +30,8 @@ def _parse_language(attributes, theater):
 def _parse_format(attributes):
     if "dolby cinema @ amc" in attributes:
         return "Dolby"
+    elif "70mm film" in attributes:
+        return "70MM"
     elif "imax 70mm" in attributes or "imax® 70mm film" in attributes:
         return "IMAX 70MM"
     elif "imax" in attributes:
