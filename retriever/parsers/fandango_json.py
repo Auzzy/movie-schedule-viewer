@@ -44,6 +44,8 @@ def _parse_format(attributes):
         return "D-Box"
     elif "screenx" in attributes:
         return "ScreenX"
+    elif "acx" in attributes:
+        return "Apple Cinema Experience"
     elif "laser at amc" in attributes or "standard format" in attributes:
         return "Standard"
     else:
