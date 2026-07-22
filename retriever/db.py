@@ -60,7 +60,12 @@ def _read_showtimes_query(raw_rows, *, clean=True):
         row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
         row_dict["extra_properties"] = json.loads(row["extra_properties"] or "{}")
         if clean:
-            del row_dict["create_time"]
+            if "create_time" in row_dict:
+                del row_dict["create_time"]
+            if "delete_time" in row_dict:
+                del row_dict["delete_time"]
+            if "id" in row_dict:
+                del row_dict["id"]
         rows.append(row_dict)
     return rows
 
@@ -156,7 +161,8 @@ def store_showtimes(schedule, *, clean=True):
 
                 recheck.append(showing_dict)
 
-    print('\n'.join(LOGS))
+    # I don't recall why I'm gathering these logs: maybe something about the fandango ID?
+    # print('\n'.join(LOGS))
 
     db.commit()
 
@@ -201,14 +207,14 @@ def delete_showtimes(showtimes_dicts):
     delete_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     for showtime in showtimes_dicts:
         delete_field_names = ("id", "theater", "title", "format", "language", "programs", "start_time")
-        delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
-        delete_field_values = tuple([_cast_value(showtime[field]) for field in delete_field_names])
+        delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names if field in showtime])
+        delete_field_values = tuple([_cast_value(showtime[field]) for field in delete_field_names if field in showtime])
         cur.execute(f"DELETE FROM showtimes WHERE {delete_field_where_str}", delete_field_values)
 
         new_insert_field_names = ("end_time", "extra_properties")
         if "screen" in showtime:
             new_insert_field_names += ("screen", )
-        insert_field_names = delete_field_names + new_insert_field_names
+        insert_field_names = [field for field in (delete_field_names + new_insert_field_names) if field in showtime]
         insert_field_names_str = ", ".join(insert_field_names)
         insert_field_values = delete_field_values + tuple([_cast_value(showtime[field]) for field in new_insert_field_names])
         cur.execute(f"""
@@ -244,16 +250,8 @@ def load_deleted_showtimes_by_deletion_time(first_delete_time, last_delete_time,
         (first_delete_time, last_delete_time)
     )
 
-    rows = []
-    for row in cur.fetchall():
-        row_dict = dict(row)
-        row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
-        row_dict["extra_properties"] = json.loads(row["extra_properties"] or "{}")
-        if clean:
-            del row_dict["delete_time"]
-            del row_dict["id"]
-        rows.append(row_dict)
-    return rows
+    return _read_showtimes_query(cur.fetchall(), clean=clean)
+
 
 
 def load_visibility(*, client_id):
@@ -300,13 +298,22 @@ def load_schedule(first_time, last_time, *, client_id):
         query_params
     )
 
-    rows = []
-    for row in cur.fetchall():
-        row_dict = dict(row)
-        row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
-        row_dict["extra_properties"] = json.loads(row["extra_properties"] or "{}")
-        rows.append(row_dict)
-    return rows
+    return _read_showtimes_query(cur.fetchall(), clean=False)
+
+def load_whole_schedule(*, client_id):
+    db = _connect()
+    cur = db.cursor()
+
+    cur.execute(f"""
+        SELECT *
+        FROM schedule s
+        WHERE s.client = {_PH}
+        ORDER BY s.start_time""",
+        (client_id, )
+    )
+
+    return _read_showtimes_query(cur.fetchall(), clean=False)
+
 
 def add_to_schedule(showtime, *, client_id):
     db = _connect()
@@ -316,7 +323,7 @@ def add_to_schedule(showtime, *, client_id):
     field_names = ("id", "theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "extra_properties", "create_time", "client")
     field_names_str = ", ".join(field_names)
     field_values = (
-        showtime["id"],
+        showtime.get("id"),
         showtime["theater"],
         showtime["title"],
         showtime["format"],

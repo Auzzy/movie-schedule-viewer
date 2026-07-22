@@ -263,3 +263,13 @@ def run_gather_fandango_screens(theater: str):
     db.log_task(db.Task.GATHER_FANDANGO_SCREENS, start_time, end_time, success)
 
     print(f"Completed gather {theater} auditoriums at {end_time} UTC")
+
+
+@app.get("/schedule/rss/")
+@app.get("/schedule/rss/{path_client_id}/")
+def schedule_rss(client_id: Annotated[str | None, Cookie()] = None, path_client_id: str | None = None):
+    client_id = path_client_id or client_id
+
+    schedule = db.load_whole_schedule(client_id=client_id)
+    ics_stream = _showtimes_to_ics(schedule)
+    return Response(content=ics_stream, media_type="text/calendar")
