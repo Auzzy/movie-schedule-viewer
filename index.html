@@ -537,6 +537,8 @@
                         );
 
                         listingCalendar.render();
+
+                        document.getElementById("listing-calendar-screening-count").innerText = showtimes.length;
                     });
             }
 
@@ -1250,7 +1252,8 @@
     <body style="overflow: hidden;">
         <div popover id="showtime-details" style="width: 15%; height: 40%; padding: 10px;"></div>
         <div popover id="movie-showtime-listing" style="width: 25%; height: 65%;">
-            <div id='listing-calendar'></div>
+            <div id="listing-calendar"></div>
+            <div style="float: right; margin: 0.4em; font-style: italic">(<span id="listing-calendar-screening-count"></span> screenings)</div>
         </div>
         {% if allow_editing %}
         <div popover id="manage-watchlist-popover" style="width: 15%; height: 75%; padding: 10px; overflow: hidden">
