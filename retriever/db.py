@@ -1,11 +1,8 @@
 import json
-import os
-import sqlite3
 from datetime import datetime, timezone
 from enum import StrEnum
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from retriever import orm
 
 
 class Task(StrEnum):
@@ -15,19 +12,6 @@ class Task(StrEnum):
     GATHER_FANDANGO_SCREENS = "gather-fandango-screens"
 
 
-def _connect():
-    global _DATETIME, _PH
-    database_url = os.getenv('DATABASE_URL')
-    if database_url:
-        _PH = "%s"
-        _DATETIME = "::timestamptz"
-        return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
-    else:
-        _PH = "?"
-        _DATETIME = ""
-        db = sqlite3.connect("showtimes.db")
-        db.row_factory = sqlite3.Row
-        return db
 
 def _cast_value(value):
     if isinstance(value, bool):
@@ -55,10 +39,9 @@ def schedule_keys(schedule):
 
 def _read_showtimes_query(raw_rows, *, clean=True):
     rows = []
-    for row in raw_rows:
-        row_dict = dict(row)
-        row_dict["programs"] = set(json.loads(row["programs"] or "[]"))
-        row_dict["extra_properties"] = json.loads(row["extra_properties"] or "{}")
+    for row_dict in raw_rows:
+        row_dict["programs"] = set(json.loads(row_dict["programs"] or "[]"))
+        row_dict["extra_properties"] = json.loads(row_dict["extra_properties"] or "{}")
         if clean:
             if "create_time" in row_dict:
                 del row_dict["create_time"]
@@ -67,52 +50,28 @@ def _read_showtimes_query(raw_rows, *, clean=True):
         rows.append(row_dict)
     return rows
 
+
 def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=True):
-    db = _connect()
-    cur = db.cursor()
+    where = {"theater": theater, "title": title, "start_time": [(">=", first_time), ("<=", last_time)]}
+    with orm.connection() as conn:
+        raw_result = conn.select("showtimes", where=where, order_by="title")
+    return _read_showtimes_query(raw_result, clean=clean)
 
-    where_clause = ""
-    query_params = (first_time, last_time)
-    if theater:
-        where_clause += f" AND s.theater = {_PH}"
-        query_params += (theater, )
-    if title:
-        where_clause += f" AND s.title = {_PH}"
-        query_params += (title, )
-
-    cur.execute(f"""
-        SELECT *
-        FROM showtimes s
-        WHERE s.start_time{_DATETIME} >= {_PH} AND s.start_time{_DATETIME} <= {_PH}{where_clause}
-        ORDER BY s.title""",
-        query_params
-    )
-
-    return _read_showtimes_query(cur.fetchall(), clean=clean)
 
 def load_showtimes_by_create_time(first_create_time, last_create_time):
-    db = _connect()
-    cur = db.cursor()
+    where = {"create_time": [(">=", first_create_time), ("<=", last_create_time)]}
+    with orm.connection() as conn:
+        return _read_showtimes_query(conn.select("showtimes", where=where))
 
-    cur.execute(f"""
-        SELECT *
-        FROM showtimes s
-        WHERE s.create_time{_DATETIME} >= {_PH} AND s.create_time{_DATETIME} <= {_PH}""",
-        (first_create_time.isoformat(), last_create_time.isoformat())
-    )
-
-    return _read_showtimes_query(cur.fetchall())
 
 def store_showtimes(schedule, *, clean=True):
-    db = _connect()
+    db = orm.connect()
     cur = db.cursor()
 
     key_field_names = ("theater", "title", "format", "language", "start_time")
     key_field_names_str = ", ".join(key_field_names)
     field_names = key_field_names + ("end_time", "programs", "screen", "create_time", "id", "extra_properties")
     field_names_str = ", ".join(field_names)
-
-    LOGS = []
 
     recheck = []
     create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -148,8 +107,6 @@ def store_showtimes(schedule, *, clean=True):
                 update_field_base_values = (json.dumps(showing.extra_properties), ) + ((showing.id, ) if showing.id else ())
                 update_field_values = update_field_base_values + tuple([_cast_value(showing_dict[field]) for field in key_field_names])
 
-                LOGS.append(f"WHERE: {update_field_where_str}\nSET: {update_field_set_str}\nVALUES: {update_field_values}")
-
                 cur.execute(f"""
                     UPDATE showtimes
                     SET {update_field_set_str}
@@ -158,9 +115,6 @@ def store_showtimes(schedule, *, clean=True):
                 )
 
                 recheck.append(showing_dict)
-
-    # I don't recall why I'm gathering these logs: maybe something about the fandango ID?
-    # print('\n'.join(LOGS))
 
     db.commit()
 
@@ -196,229 +150,136 @@ def store_showtimes(schedule, *, clean=True):
 
     cur.execute(f"""SELECT * FROM showtimes s WHERE s.create_time >= {_PH} ORDER BY s.title""", (create_time, ))
 
-    return _read_showtimes_query(cur.fetchall(), clean=clean)
+    return _read_showtimes_query([dict(row) for row in cur.fetchall()], clean=clean)
+
 
 def delete_showtimes(showtimes_dicts):
-    db = _connect()
-    cur = db.cursor()
-
     delete_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    for showtime in showtimes_dicts:
-        delete_field_names = ("id", "theater", "title", "format", "language", "programs", "start_time")
-        delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names if field in showtime])
-        delete_field_values = tuple([_cast_value(showtime[field]) for field in delete_field_names if field in showtime])
-        cur.execute(f"DELETE FROM showtimes WHERE {delete_field_where_str}", delete_field_values)
+    with orm.connection() as conn:
+        for showtime in showtimes_dicts:
+            delete_field_names = ("id", "theater", "title", "format", "language", "programs", "start_time")
+            insert_field_names = ("end_time", "extra_properties", "screen")
 
-        new_insert_field_names = ("end_time", "extra_properties")
-        if "screen" in showtime:
-            new_insert_field_names += ("screen", )
-        insert_field_names = [field for field in (delete_field_names + new_insert_field_names) if field in showtime]
-        insert_field_names_str = ", ".join(insert_field_names)
-        insert_field_values = delete_field_values + tuple([_cast_value(showtime[field]) for field in new_insert_field_names])
-        cur.execute(f"""
-            INSERT INTO deleted_showtimes({insert_field_names_str}, delete_time)
-            VALUES ({', '.join([_PH] * len(insert_field_names))}, {_PH})""",
-            tuple(insert_field_values) + (delete_time,)
-        )
-
-    db.commit()
-    db.close()
+            where = {field: showtime[field] for field in delete_field_names if field in showtime}
+            assign = where | {field: showtime[field] for field in insert_field_names if field in showtime} | {"delete_time": delete_time}
+            
+            conn.delete("showtimes", where)
+            conn.insert("deleted_showtimes", assign)
 
 
 def update_showtime_screens(hash_to_auditorium):
-    db = _connect()
-    cur = db.cursor()
-    
-    for hash_code, auditorium in hash_to_auditorium.items():
-        hash_code_param = f"%{hash_code}%"
-        cur.execute(f"UPDATE showtimes SET screen = {_PH} WHERE extra_properties like {_PH}", (auditorium, hash_code_param))
+    with orm.connection() as conn:
+        for hash_code, auditorium in hash_to_auditorium.items():
+            conn.update("showtimes", {"screen": auditorium}, {"extra_properties": [("like", f"%{hash_code}%")]})
 
-    db.commit()
-    db.close()
 
 def load_deleted_showtimes_by_deletion_time(first_delete_time, last_delete_time, *, clean=True):
-    db = _connect()
-    cur = db.cursor()
-
-    cur.execute(f"""
-        SELECT *
-        FROM deleted_showtimes s
-        WHERE s.delete_time{_DATETIME} >= {_PH} AND s.delete_time{_DATETIME} <= {_PH}
-        ORDER BY s.title""",
-        (first_delete_time, last_delete_time)
-    )
-
-    return _read_showtimes_query(cur.fetchall(), clean=clean)
-
+    where = {"delete_time": [(">=", first_delete_time), ("<=", last_delete_time)]}
+    with orm.connection() as conn:
+        raw_result = conn.select("deleted_showtimes", where=where, order_by="title")
+    return _read_showtimes_query(raw_result, clean=clean)
 
 
 def load_visibility(*, client_id):
-    db = _connect()
-    cur = db.cursor()
-    cur.execute(f"SELECT title, hidden FROM moviemetadata where client = {_PH}", (client_id, ))
-    result = cur.fetchall()
-    db.close()
-
-    return {row["title"]: row["hidden"] == 0 for row in result}
+    where = {"client": client_id}
+    with orm.connection() as conn:
+        raw_result = conn.select("moviemetadata", columns=["title", "hidden"], where=where)
+    return {row["title"]: row["hidden"] == 0 for row in raw_result}
     
 
 def hide_movie(title, *, client_id):
-    db = _connect()
-    cur = db.cursor()
-    cur.execute(
-        f"INSERT INTO moviemetadata(title, hidden, client) VALUES({_PH}, 1, {_PH}) ON CONFLICT(title, client) DO UPDATE SET hidden = 1",
-        (title, client_id)
-    )
-
-    db.commit()
-    db.close()
+    with orm.connection() as conn:
+        conn.insert("moviemetadata", {"title": title, "hidden": 1, "client": client_id}, conflict={("title", "client"): {"hidden": 1}})
 
 
 def show_movie(title, *, client_id):
-    db = _connect()
-    cur = db.cursor()
-    cur.execute(f"UPDATE moviemetadata SET hidden = 0 WHERE title = {_PH} AND client = {_PH}", (title, client_id))
-    db.commit()
-    db.close()
+    with orm.connection() as conn:
+        conn.update("moviemetadata", {"hidden": 0}, {"title": title, "client": client_id})
 
 
 def load_schedule(first_time, last_time, *, client_id):
-    db = _connect()
-    cur = db.cursor()
+    where = {"client": client_id, "start_time": [(">=", first_time), ("<=", last_time)]}
+    with orm.connection() as conn:
+        raw_result = conn.select("schedule", where=where, order_by="start_time")
+    return _read_showtimes_query(raw_result)
 
-    query_params = (client_id, first_time, last_time)
-
-    cur.execute(f"""
-        SELECT *
-        FROM schedule s
-        WHERE s.client = {_PH} AND s.start_time{_DATETIME} >= {_PH} AND s.start_time{_DATETIME} <= {_PH}
-        ORDER BY s.start_time""",
-        query_params
-    )
-
-    return _read_showtimes_query(cur.fetchall(), clean=False)
 
 def load_whole_schedule(*, client_id):
-    db = _connect()
-    cur = db.cursor()
-
-    cur.execute(f"""
-        SELECT *
-        FROM schedule s
-        WHERE s.client = {_PH}
-        ORDER BY s.start_time""",
-        (client_id, )
-    )
-
-    return _read_showtimes_query(cur.fetchall(), clean=False)
+    where = {"client": client_id}
+    with orm.connection() as conn:
+        raw_result = conn.select("schedule", where=where, order_by="start_time")
+    return _read_showtimes_query(raw_result, clean=False)
 
 
 def add_to_schedule(showtime, *, client_id):
-    db = _connect()
-    cur = db.cursor()
-
-    create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    field_names = ("id", "theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "extra_properties", "create_time", "client")
-    field_names_str = ", ".join(field_names)
-    field_values = (
-        showtime["id"],
-        showtime["theater"],
-        showtime["title"],
-        showtime["format"],
-        showtime["screen"],
-        showtime["language"],
-        json.dumps(sorted(showtime["programs"])),
-        showtime["start_time"],
-        showtime["end_time"],
-        json.dumps(showtime["extra_properties"]),
-        create_time,
-        client_id
-    )
+    entry = {
+        "id": showtime["id"],
+        "theater": showtime["theater"],
+        "title": showtime["title"],
+        "format": showtime["format"],
+        "screen": showtime["screen"],
+        "language": showtime["language"],
+        "programs": json.dumps(sorted(showtime["programs"])),
+        "start_time": showtime["start_time"],
+        "end_time": showtime["end_time"],
+        "extra_properties": json.dumps(showtime["extra_properties"]),
+        "create_time": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "client": client_id
+    }
     
-    cur.execute(f"""
-        INSERT INTO schedule({field_names_str})
-        VALUES ({', '.join([_PH] * len(field_names))})
-        ON CONFLICT(theater, title, format, language, start_time, client) DO NOTHING""",
-        field_values
-    )
-            
-    db.commit()
-    db.close()
+    with orm.connection() as conn:
+        conn.insert("schedule", entry, conflict={("theater", "title", "format", "language", "start_time", "client"): None})
+
 
 def remove_from_schedule(showtime, *, client_id):
-    db = _connect()
-    cur = db.cursor()
-
     delete_field_names = ("theater", "title", "format", "language", "start_time")
-    delete_field_where_str = " and ".join([f"{field} = {_PH}" for field in delete_field_names])
-    delete_field_raw_values = tuple([showtime[field] for field in delete_field_names])
-    delete_field_values = tuple([_cast_value(value) for value in delete_field_raw_values])
-    cur.execute(f"DELETE FROM schedule WHERE {delete_field_where_str} and client = {_PH}", delete_field_values + (client_id,))
+    where = {field: showtime[field] for field in delete_field_names} | {"client": client_id}
     
-    db.commit()
-    db.close()
+    with orm.connection() as conn:
+        conn.delete("schedule", where)
 
 
 def clear_schedule(first_time, last_time, *, client_id):
-    db = _connect()
-    cur = db.cursor()
-
-    query_params = (client_id, first_time, last_time)
-
-    cur.execute(f"""
-        DELETE FROM schedule
-        WHERE client = {_PH} AND start_time{_DATETIME} >= {_PH} AND start_time{_DATETIME} <= {_PH}""",
-        query_params
-    )
-
-    db.commit()
-    db.close()
+    where = {"client": client_id, "start_time": [(">=", first_time), ("<=", last_time)]}
+    with orm.connection() as conn:
+        conn.delete("schedule", where)
 
 
 def theaters_last_update():
-    db = _connect()
-    cur = db.cursor()
-    
-    cur.execute("""
-        SELECT theater, MAX(create_time) as last_update_time
-        FROM showtimes
-        GROUP BY theater
-    """)
-
-    return {row["theater"]: row["last_update_time"] for row in cur.fetchall()}
+    columns = [
+        "theater",
+        "MAX(create_time) last_update_time"
+    ]
+    with orm.connection() as conn:
+        raw_result = conn.select("showtimes", columns, group_by="theater")
+    return {row["theater"]: row["last_update_time"] for row in raw_result}
 
 
 def add_theater(name, fullname, code, tzname, is_open, rank, parser, query):
-    db = _connect()
-    cur = db.cursor()
-
     code = code.lower() if code is not None else None
 
-    cur.execute(f"""
-        INSERT INTO theater(name, fullname, code, tzname, isopen, rank, parser, query)
-        VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})
-        ON CONFLICT(name) DO NOTHING""",
-        (name, fullname, code, tzname, int(bool(is_open)), rank, parser, query)
-    )
-
-    db.commit()
-    db.close()
+    info = {
+        "name": name,
+        "fullname": fullname,
+        "code": code,
+        "tzname": tzname,
+        "isopen": int(bool(is_open)),
+        "rank": rank,
+        "parser": parser,
+        "query": query
+    }
+    with orm.connection() as conn:
+        conn.insert("theater", info)
 
 
 def get_theaters(*, is_open=None, clean=True):
-    db = _connect()
-    cur = db.cursor()
-
-    where_clause = ""
-    if is_open is not None:
-        where_clause = f"WHERE isopen = {int(bool(is_open))}"
-
-    cur.execute(f"""SELECT * FROM theater {where_clause} ORDER BY rank""")
-
+    where = {"isopen": int(bool(is_open))} if is_open is not None else {}
     rows = []
-    for row in cur.fetchall():
-        row_dict = dict(row)
-        row_dict["is_open"] = row["isopen"] == 1
+    with orm.connection() as conn:
+        raw_result = conn.select("theater", where=where, order_by="rank")
+
+    for row_dict in raw_result:
+        row_dict["is_open"] = row_dict["isopen"] == 1
         if clean:
             del row_dict["parser"]
             
@@ -427,192 +288,139 @@ def get_theaters(*, is_open=None, clean=True):
 
 
 def get_theater(name):
-    db = _connect()
-    cur = db.cursor()
+    with orm.connection() as conn:
+        row_dict = conn.selectone("theater", where={"name": name, "isopen": 1})
 
-    cur.execute(f"""SELECT * FROM theater WHERE name = {_PH} AND isopen = 1""", (name, ))
-
-    row_dict = dict(cur.fetchone() or {})
-    if row_dict:
-        row_dict["is_open"] = row_dict["isopen"] == 1
-        return row_dict
-    else:
-        return {}
+    return {**row_dict, "is_open": row_dict["isopen"] == 1} if row_dict else {}
 
 
 def load_watchlist(client_id):
-    db = _connect()
-    cur = db.cursor()
-
-    query_params = (client_id, )
-
-    cur.execute(f"""
-        SELECT *
-        FROM watchlist w
-        WHERE w.client = {_PH}
-        ORDER BY w.title""",
-        query_params
-    )
-
-    return [dict(row) for row in cur.fetchall()]
+    where = {"client": client_id}
+    with orm.connection() as conn:
+        return conn.select("watchlist", where=where, order_by="title")
 
 
 def load_all_watchlists():
-    db = _connect()
-    cur = db.cursor()
-
-    cur.execute(f"""
-        SELECT *
-        FROM watchlist w
-        ORDER BY w.title
-    """)
-
-    return [dict(row) for row in cur.fetchall()]
-
+    with orm.connection() as conn:
+        return conn.select("watchlist", order_by="title")
 
 
 def add_to_watchlist(title, *, client_id):
-    db = _connect()
-    cur = db.cursor()
-
-    cur.execute(f"""
-        INSERT INTO watchlist(title, client)
-        VALUES ({_PH}, {_PH})
-        ON CONFLICT(title, client) DO NOTHING""",
-        (title, client_id)
-    )
-
-    db.commit()
-    db.close()
+    entry = {"title": title, "client": client_id}
+    with orm.connection() as conn:
+        conn.insert("watchlist", entry, conflict={tuple(entry.keys()): None})
 
 
 def remove_from_watchlist(title, *, client_id):
-    db = _connect()
-    cur = db.cursor()
-
-    cur.execute(f"""
-        DELETE FROM watchlist
-        WHERE title = {_PH} and client = {_PH}""",
-        (title, client_id)
-    )
-
-    db.commit()
-    db.close()
+    with orm.connection() as conn:
+        conn.delete("watchlist", {"title": title, "client": client_id})
 
 
 def log_task(name, start_time, end_time, success):
-    db = _connect()
-    cur = db.cursor()
-
     if name not in list(Task):
         raise ValueError(f"\"name\" must be one of: {list(Task)}")
 
-    cur.execute(f"""
-        INSERT INTO task_log(name, start_time, end_time, success)
-        VALUES ({_PH}, {_PH}, {_PH}, {_PH})""",
-        (name, start_time.isoformat(), end_time.isoformat(), int(bool(success)))
-    )
-
-    db.commit()
-    db.close()
+    info = {
+        "name":name,
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(), 
+        "success": int(bool(success))
+    }
+    with orm.connection() as conn:
+        conn.insert("task_log", info)
 
 
 def last_successful_task_run(name):
-    db = _connect()
-    cur = db.cursor()
+    with orm.connection() as conn:
+        raw_result = conn.selectone("task_log", ["max(start_time) last_run"], {"name": name, "success": 1})
 
-    cur.execute(f"""SELECT max(start_time) as last_run FROM task_log WHERE name = {_PH} AND success = 1""", (name, ))
-
-    last_run_str = dict(cur.fetchone()).get("last_run")
+    last_run_str = raw_result.get("last_run")
     return datetime.fromisoformat(last_run_str) if last_run_str else None
 
 
 def _init_db():
-    db = _connect()
-    cur = db.cursor()
+    with orm.connection() as conn:
+        cur = conn.db.cursor()
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS showtimes (
-        id TEXT,
-        theater TEXT NOT NULL,
-        title TEXT NOT NULL,
-        format TEXT NOT NULL,
-        screen TEXT,
-        language TEXT NOT NULL,
-        programs TEXT,
-        start_time TEXT NOT NULL,
-        end_time TEXT NOT NULL,
-        extra_properties TEXT,
-        create_time TEXT NOT NULL,
-        PRIMARY KEY(theater, title, format, language, start_time)
-    )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS showtimes (
+            id TEXT,
+            theater TEXT NOT NULL,
+            title TEXT NOT NULL,
+            format TEXT NOT NULL,
+            screen TEXT,
+            language TEXT NOT NULL,
+            programs TEXT,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            extra_properties TEXT,
+            create_time TEXT NOT NULL,
+            PRIMARY KEY(theater, title, format, language, start_time)
+        )""")
 
-    # I could do this as a soft delete from showtimes. But this allows
-    # capturing any instance of them re-adding the exact same showtime.
-    cur.execute("""CREATE TABLE IF NOT EXISTS deleted_showtimes (
-        id TEXT,
-        autoid BIGSERIAL PRIMARY KEY,
-        theater TEXT NOT NULL,
-        title TEXT NOT NULL,
-        format TEXT NOT NULL,
-        screen TEXT,
-        language TEXT NOT NULL,
-        programs TEXT,
-        start_time TEXT NOT NULL,
-        end_time TEXT NOT NULL,
-        extra_properties TEXT,
-        delete_time TEXT NOT NULL
-    )""")
+        # I could do this as a soft delete from showtimes. But this allows
+        # capturing any instance of them re-adding the exact same showtime.
+        cur.execute("""CREATE TABLE IF NOT EXISTS deleted_showtimes (
+            id TEXT,
+            autoid BIGSERIAL PRIMARY KEY,
+            theater TEXT NOT NULL,
+            title TEXT NOT NULL,
+            format TEXT NOT NULL,
+            screen TEXT,
+            language TEXT NOT NULL,
+            programs TEXT,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            extra_properties TEXT,
+            delete_time TEXT NOT NULL
+        )""")
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS moviemetadata (
-        title TEXT NOT NULL,
-        hidden INTEGER DEFAULT 0,
-        client TEXT NOT NULL,
-        PRIMARY KEY(title, client)
-    )""")
-    
-    cur.execute("""CREATE TABLE IF NOT EXISTS schedule (
-        id TEXT,
-        theater TEXT NOT NULL,
-        title TEXT NOT NULL,
-        format TEXT NOT NULL,
-        screen TEXT,
-        language TEXT NOT NULL,
-        programs TEXT,
-        start_time TEXT NOT NULL,
-        end_time TEXT NOT NULL,
-        create_time TEXT NOT NULL,
-        extra_properties TEXT,
-        client TEXT NOT NULL,
-        PRIMARY KEY(theater, title, format, language, start_time, client)
-    )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS moviemetadata (
+            title TEXT NOT NULL,
+            hidden INTEGER DEFAULT 0,
+            client TEXT NOT NULL,
+            PRIMARY KEY(title, client)
+        )""")
+        
+        cur.execute("""CREATE TABLE IF NOT EXISTS schedule (
+            id TEXT,
+            theater TEXT NOT NULL,
+            title TEXT NOT NULL,
+            format TEXT NOT NULL,
+            screen TEXT,
+            language TEXT NOT NULL,
+            programs TEXT,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            create_time TEXT NOT NULL,
+            extra_properties TEXT,
+            client TEXT NOT NULL,
+            PRIMARY KEY(theater, title, format, language, start_time, client)
+        )""")
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS theater (
-        name TEXT PRIMARY KEY,
-        fullname TEXT NOT NULL,
-        code TEXT,
-        tzname TEXT NOT NULL,
-        isopen INTEGER NOT NULL,
-        rank INTEGER,
-        parser TEXT NOT NULL,
-        query TEXT
-    )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS theater (
+            name TEXT PRIMARY KEY,
+            fullname TEXT NOT NULL,
+            code TEXT,
+            tzname TEXT NOT NULL,
+            isopen INTEGER NOT NULL,
+            rank INTEGER,
+            parser TEXT NOT NULL,
+            query TEXT
+        )""")
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS watchlist (
-        title TEXT NOT NULL,
-        client TEXT NOT NULL,
-        PRIMARY KEY(title, client)
-    )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS watchlist (
+            title TEXT NOT NULL,
+            client TEXT NOT NULL,
+            PRIMARY KEY(title, client)
+        )""")
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS task_log (
-        name TEXT NOT NULL,
-        start_time TEXT NOT NULL,
-        end_time TEXT NOT NULL,
-        success INT NOT NULL,
-        PRIMARY KEY(name, start_time)
-    )""")
-
-    db.commit()
-    db.close()
+        cur.execute("""CREATE TABLE IF NOT EXISTS task_log (
+            name TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            success INT NOT NULL,
+            PRIMARY KEY(name, start_time)
+        )""")
 
 
 _init_db()
