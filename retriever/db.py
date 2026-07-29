@@ -64,8 +64,6 @@ def _read_showtimes_query(raw_rows, *, clean=True):
                 del row_dict["create_time"]
             if "delete_time" in row_dict:
                 del row_dict["delete_time"]
-            if "id" in row_dict:
-                del row_dict["id"]
         rows.append(row_dict)
     return rows
 
@@ -323,7 +321,7 @@ def add_to_schedule(showtime, *, client_id):
     field_names = ("id", "theater", "title", "format", "screen", "language", "programs", "start_time", "end_time", "extra_properties", "create_time", "client")
     field_names_str = ", ".join(field_names)
     field_values = (
-        showtime.get("id"),
+        showtime["id"],
         showtime["theater"],
         showtime["title"],
         showtime["format"],
