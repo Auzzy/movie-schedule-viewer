@@ -818,7 +818,15 @@
                 delete srcShowtime["create_time"];
                 var isScheduled = scheduleCalendar.getEvents().some((e) => {
                     var evtShowtime = e.extendedProps["showtime"];
-                    return Object.keys(srcShowtime).every((key) => srcShowtime[key] === evtShowtime[key]);
+                    return Object.keys(srcShowtime).every((key) => {
+                        if (key === "programs") {
+                            return srcShowtime[key].every((program) => evtShowtime[key].includes(program));
+                        } else if (key === "extra_properties") {
+                            return JSON.stringify(srcShowtime[key]) === JSON.stringify(evtShowtime[key]);
+                        } else {
+                            return srcShowtime[key] === evtShowtime[key];
+                        }
+                    });
                 });
                 if (!isScheduled) {
                     scheduleCalendar.addEvent(event);
