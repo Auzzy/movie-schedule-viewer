@@ -141,7 +141,7 @@ class Showing:
         return Showing(id_, fmt, lang, programs, start, end, screen, **extra_properties)
 
     def __init__(self, id_, fmt, language, programs, start, end, screen=None, **extra_properties):
-        self.id = str(id_)
+        self.id = str(id_) if id_ else None
         self.fmt = fmt
         self.language = language
         self.programs = set(programs)

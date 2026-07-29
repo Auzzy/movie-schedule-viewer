@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 
 from retriever import orm
@@ -12,30 +12,6 @@ class Task(StrEnum):
     GATHER_FANDANGO_SCREENS = "gather-fandango-screens"
 
 
-
-def _cast_value(value):
-    if isinstance(value, bool):
-        return int(value)
-    elif isinstance(value, list):
-        return json.dumps(value)
-    elif isinstance(value, set):
-        return json.dumps(sorted(value))
-    elif isinstance(value, dict):
-        return json.dumps(value)
-    else:
-        return value
-
-def showtime_key(theater, title, showing):
-    return {
-        "theater": theater,
-        "title": title,
-        "format": showing.fmt,
-        "language": showing.language,
-        "start_time": showing.start.isoformat(),
-    }
-
-def schedule_keys(schedule):
-    return [showtime_key(schedule.theater, movie.name, showing) for movie in schedule.movies for showing in movie.showings]
 
 def _read_showtimes_query(raw_rows, *, clean=True):
     rows = []
@@ -58,126 +34,81 @@ def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=Tru
     return _read_showtimes_query(raw_result, clean=clean)
 
 
-def load_showtimes_by_create_time(first_create_time, last_create_time):
-    where = {"create_time": [(">=", first_create_time), ("<=", last_create_time)]}
+def load_showtimes_by_create_time(first_create_time, last_create_time=None, *, order_by=None, clean=True):
+    create_time_filter = [(">=", first_create_time)] + ([("<=", last_create_time)] if last_create_time else [])
+    where = {"create_time": create_time_filter}
     with orm.connection() as conn:
-        return _read_showtimes_query(conn.select("showtimes", where=where))
+        raw_result = conn.select("showtimes", where=where, order_by=order_by)
+    return _read_showtimes_query(raw_result, clean=clean)
+
+
+def load_deleted_showtimes_by_delete_time(first_delete_time, last_delete_time=None, *, order_by=None, clean=True):
+    delete_time_filter = [(">=", first_delete_time)] + ([("<=", last_delete_time)] if last_delete_time else [])
+    where = {"delete_time": delete_time_filter}
+    with orm.connection() as conn:
+        raw_result = conn.select("deleted_showtimes", where=where, order_by=order_by)
+    return _read_showtimes_query(raw_result, clean=clean)
 
 
 def store_showtimes(schedule, *, clean=True):
-    db = orm.connect()
-    cur = db.cursor()
-
-    key_field_names = ("theater", "title", "format", "language", "start_time")
-    key_field_names_str = ", ".join(key_field_names)
-    field_names = key_field_names + ("end_time", "programs", "screen", "create_time", "id", "extra_properties")
-    field_names_str = ", ".join(field_names)
-
-    recheck = []
-    create_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    new_showtimes = []
     for movie in schedule.movies:
         for showing in movie.showings:
-            field_values = (
-                schedule.theater,
-                movie.name,
-                showing.fmt,
-                showing.language,
-                showing.start.isoformat(),
-                showing.end.isoformat(),
-                json.dumps(sorted(showing.programs)),
-                showing.screen,
-                create_time,
-                showing.id,
-                json.dumps(showing.extra_properties)
-            )
+            if not showing.id:
+                continue
 
-            cur.execute(f"""
-                INSERT INTO showtimes({field_names_str})
-                VALUES ({', '.join([_PH] * len(field_names))})
-                ON CONFLICT({key_field_names_str}) DO NOTHING
-                RETURNING *""",
-                field_values
-            )
+            new_showtimes.append({
+                "id": showing.id,
+                "theater": schedule.theater,
+                "title": movie.name,
+                "format": showing.fmt,
+                "language": showing.language,
+                "start_time": showing.start.isoformat(),
+                "end_time": showing.end.isoformat(),
+                "programs": showing.programs,
+                "screen": showing.screen,
+                "extra_properties": showing.extra_properties
+            })
 
-            if not cur.fetchone():
-                showing_dict = dict(zip(field_names, field_values))
+    if not new_showtimes:
+        # Maybe sub in the hash? But I'd need to solve the duplication that would occur if the ID disappears after being entered in the DB...
+        print("The list of new showtimes was empty. This is likely due to the showtimes found lacking IDs.")
+        return [], []
 
-                update_field_where_str = " and ".join([f"{field} = {_PH}" for field in key_field_names])
-                update_field_set_str = f"extra_properties = {_PH}" + (f", id = {_PH}" if showing.id else "")
-                update_field_base_values = (json.dumps(showing.extra_properties), ) + ((showing.id, ) if showing.id else ())
-                update_field_values = update_field_base_values + tuple([_cast_value(showing_dict[field]) for field in key_field_names])
-
-                cur.execute(f"""
-                    UPDATE showtimes
-                    SET {update_field_set_str}
-                    WHERE {update_field_where_str}""",
-                    update_field_values
-                )
-
-                recheck.append(showing_dict)
-
-    db.commit()
-
-    ### Update showtimes with missing runtimes ###
-    # Movies entered into the DB with no runtime have their end time set to their start time. When
-    # inserting new showtimes into the DB, end time isn't considered for identification, so even
-    # when it's present, it's considered a conflict, and thus omitted.
-    # To update it, we capture the inserts that don't do anything, check if they identify rows
-    # without a runtime, then update their end_time as appropriate.
-    # As this does not change create_time, they're omitted from the returned set of stored rows.
-    cur.execute(f"""
-        SELECT {key_field_names_str}
-        FROM showtimes s
-        WHERE s.create_time < {_PH} and s.start_time = s.end_time""",
-        (create_time, )
-    )
-
-    showtimes_without_end = [dict(row) for row in cur.fetchall()]
-    if showtimes_without_end:
-        for showtime_dict in recheck:
-            key_showtime_dict = {key: value for key, value in showtime_dict.items() if key in key_field_names}
-            if key_showtime_dict in showtimes_without_end:
-                update_field_where_str = " and ".join([f"{field} = {_PH}" for field in key_field_names])
-                update_field_values = (showtime_dict["end_time"], ) + tuple([showtime_dict[field] for field in key_field_names])
-
-                cur.execute(f"""
-                    UPDATE showtimes
-                    SET end_time = {_PH}
-                    WHERE {update_field_where_str}""",
-                    update_field_values)
-
-        db.commit()
-
-    cur.execute(f"""SELECT * FROM showtimes s WHERE s.create_time >= {_PH} ORDER BY s.title""", (create_time, ))
-
-    return _read_showtimes_query([dict(row) for row in cur.fetchall()], clean=clean)
-
-
-def delete_showtimes(showtimes_dicts):
-    delete_time = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     with orm.connection() as conn:
-        for showtime in showtimes_dicts:
-            delete_field_names = ("id", "theater", "title", "format", "language", "programs", "start_time")
-            insert_field_names = ("end_time", "extra_properties", "screen")
+        where = {"theater": schedule.theater, "start_time": [(">=", schedule.start), ("<=", schedule.end + timedelta(days=1))]}
+        current_showtimes = _read_showtimes_query(conn.select("showtimes", where=where))
+        current_showtimes_by_key = {(s["id"], s["theater"]): s for s in current_showtimes}
 
-            where = {field: showtime[field] for field in delete_field_names if field in showtime}
-            assign = where | {field: showtime[field] for field in insert_field_names if field in showtime} | {"delete_time": delete_time}
-            
-            conn.delete("showtimes", where)
-            conn.insert("deleted_showtimes", assign)
+        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        to_insert, to_delete = [], []
+        for new_showtime in new_showtimes:
+            current_showtime = current_showtimes_by_key.get((new_showtime["id"], new_showtime["theater"]))
+
+            # TODO: Need to do something to handle screens, but I don't have time right now.
+            current_showtime_screen = current_showtime.pop("screen", None) if current_showtime else None
+            new_showtime_screen = new_showtime.pop("screen", None)
+            if new_showtime != current_showtime:
+                to_insert.append(new_showtime | {"create_time": now})
+                if current_showtime:
+                    to_delete.append(current_showtime | {"delete_time": now})
+
+        if to_delete:
+            conn.insert("deleted_showtimes", to_delete)
+            conn.delete("showtimes", {"theater": schedule.theater, "id": [("in", [s["id"] for s in to_delete])]})
+
+        if to_insert:
+            conn.insert("showtimes", to_insert, conflict={("id", "theater"): None})
+
+    showtimes = load_showtimes_by_create_time(now, order_by="title", clean=clean)
+    deleted_showtimes = load_deleted_showtimes_by_delete_time(now, order_by="title", clean=clean)
+    return showtimes, deleted_showtimes
 
 
 def update_showtime_screens(hash_to_auditorium):
     with orm.connection() as conn:
         for hash_code, auditorium in hash_to_auditorium.items():
             conn.update("showtimes", {"screen": auditorium}, {"extra_properties": [("like", f"%{hash_code}%")]})
-
-
-def load_deleted_showtimes_by_deletion_time(first_delete_time, last_delete_time, *, clean=True):
-    where = {"delete_time": [(">=", first_delete_time), ("<=", last_delete_time)]}
-    with orm.connection() as conn:
-        raw_result = conn.select("deleted_showtimes", where=where, order_by="title")
-    return _read_showtimes_query(raw_result, clean=clean)
 
 
 def load_visibility(*, client_id):
@@ -226,17 +157,14 @@ def add_to_schedule(showtime, *, client_id):
         "create_time": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "client": client_id
     }
-    
+
     with orm.connection() as conn:
-        conn.insert("schedule", entry, conflict={("theater", "title", "format", "language", "start_time", "client"): None})
+        conn.insert("schedule", entry, conflict={("id", "theater", "client"): None})
 
 
 def remove_from_schedule(showtime, *, client_id):
-    delete_field_names = ("theater", "title", "format", "language", "start_time")
-    where = {field: showtime[field] for field in delete_field_names} | {"client": client_id}
-    
     with orm.connection() as conn:
-        conn.delete("schedule", where)
+        conn.delete("schedule", where={"id": showtime["id"], "theater": showtime["theater"], "client": client_id})
 
 
 def clear_schedule(first_time, last_time, *, client_id):
@@ -354,7 +282,7 @@ def _init_db():
             end_time TEXT NOT NULL,
             extra_properties TEXT,
             create_time TEXT NOT NULL,
-            PRIMARY KEY(theater, title, format, language, start_time)
+            PRIMARY KEY(id, theater)
         )""")
 
         # I could do this as a soft delete from showtimes. But this allows
@@ -380,7 +308,7 @@ def _init_db():
             client TEXT NOT NULL,
             PRIMARY KEY(title, client)
         )""")
-        
+
         cur.execute("""CREATE TABLE IF NOT EXISTS schedule (
             id TEXT,
             theater TEXT NOT NULL,
@@ -394,7 +322,7 @@ def _init_db():
             create_time TEXT NOT NULL,
             extra_properties TEXT,
             client TEXT NOT NULL,
-            PRIMARY KEY(theater, title, format, language, start_time, client)
+            PRIMARY KEY(id, theater, client)
         )""")
 
         cur.execute("""CREATE TABLE IF NOT EXISTS theater (

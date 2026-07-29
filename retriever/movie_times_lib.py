@@ -111,28 +111,6 @@ def collect_schedule(theater, filepath, date_range, filter_params, quiet):
     return FullSchedule.create(filtered_schedules)
 
 
-def db_showtime_updates(date_range, schedule):
-    theater = db.get_theater(schedule.theater)
-    tz = offset_timezone(theater["tzname"])
-    now = datetime.now(tz).replace(microsecond=0).isoformat()
-
-    # The date_range is inclusive of the end time, but load_showtimes is not.
-    aware_date_range = (date_range[0].astimezone(tz), date_range[1].astimezone(tz) + timedelta(days=1))
-
-    current_showtimes = db.schedule_keys(schedule)
-
-    deleted_showtimes = []
-    for showtime in db.load_showtimes(*aware_date_range, theater=schedule.theater):
-        old_showtime = {key: showtime[key] for key in current_showtimes[0]}
-
-        if now < old_showtime['start_time'] and old_showtime not in current_showtimes:
-            deleted_showtimes.append(showtime)
-
-    db.delete_showtimes(deleted_showtimes)
-
-    return deleted_showtimes
-
-
 @task
 def send_watchlist_notification():
     last_time = datetime.now()
@@ -190,7 +168,8 @@ def send_deletion_report():
     last_time = datetime.now()
     first_time = db.last_successful_task_run(db.Task.DELETION_REPORT) or (last_time - timedelta(days=365))
 
-    deleted_showtimes_by_theater = group_dict_by(db.load_deleted_showtimes_by_deletion_time(first_time, last_time), "theater")
+    all_deleted_showtimes = db.load_deleted_showtimes_by_delete_time(first_time, last_time, order_by="title")
+    deleted_showtimes_by_theater = group_dict_by(all_deleted_showtimes, "theater")
     filtered_deleted_showtimes = []
     for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
         deleted_showtimes = [{**s, "programs": list(s.get("programs", set()))} for s in deleted_showtimes]

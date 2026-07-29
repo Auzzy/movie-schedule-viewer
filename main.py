@@ -17,7 +17,7 @@ from ical.event import Event
 from pydantic import BaseModel
 
 from retriever import db
-from retriever.movie_times_lib import collect_schedule, db_showtime_updates, \
+from retriever.movie_times_lib import collect_schedule, \
         gather_fandango_screens_by_theater, gather_fandango_screens_new_showtimes, \
         send_error_email, send_deletion_report, send_watchlist_notification
 from retriever.schedule import Filter, FullSchedule
@@ -220,7 +220,6 @@ def scan():
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
                 db.store_showtimes(schedule)
-                db_showtime_updates(date_range, schedule)
 
         gather_fandango_screens_new_showtimes(start_time)
 
