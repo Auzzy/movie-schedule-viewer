@@ -42,6 +42,8 @@ def _cast_value(value):
         return json.dumps(sorted(value))
     elif isinstance(value, dict):
         return json.dumps(value)
+    elif isinstance(value, (datetime, date, time)):
+        return value.isoformat()
     else:
         return value
 
@@ -218,4 +220,4 @@ class connection():
         self._execute(query_parts, where_params)
 
 
-orm.init()
+init()

@@ -63,8 +63,8 @@ def store_showtimes(schedule, *, clean=True):
                 "title": movie.name,
                 "format": showing.fmt,
                 "language": showing.language,
-                "start_time": showing.start.isoformat(),
-                "end_time": showing.end.isoformat(),
+                "start_time": showing.start,
+                "end_time": showing.end,
                 "programs": showing.programs,
                 "screen": showing.screen,
                 "extra_properties": showing.extra_properties
@@ -80,7 +80,7 @@ def store_showtimes(schedule, *, clean=True):
         current_showtimes = _read_showtimes_query(conn.select("showtimes", where=where))
         current_showtimes_by_key = {(s["id"], s["theater"]): s for s in current_showtimes}
 
-        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        now = datetime.now(timezone.utc).replace(microsecond=0)
         to_insert, to_delete = [], []
         for new_showtime in new_showtimes:
             current_showtime = current_showtimes_by_key.get((new_showtime["id"], new_showtime["theater"]))
@@ -150,11 +150,11 @@ def add_to_schedule(showtime, *, client_id):
         "format": showtime["format"],
         "screen": showtime["screen"],
         "language": showtime["language"],
-        "programs": json.dumps(sorted(showtime["programs"])),
+        "programs": showtime["programs"],
         "start_time": showtime["start_time"],
         "end_time": showtime["end_time"],
-        "extra_properties": json.dumps(showtime["extra_properties"]),
-        "create_time": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "extra_properties": showtime["extra_properties"],
+        "create_time": datetime.now(timezone.utc).replace(microsecond=0),
         "client": client_id
     }
 
@@ -250,8 +250,8 @@ def log_task(name, start_time, end_time, success):
 
     info = {
         "name":name,
-        "start_time": start_time.isoformat(),
-        "end_time": end_time.isoformat(), 
+        "start_time": start_time,
+        "end_time": end_time,
         "success": int(bool(success))
     }
     with orm.connection() as conn:
