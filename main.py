@@ -63,8 +63,8 @@ def _showtimes_to_ics(showtimes):
                 summary=showtime["title"],
                 description=description,
                 location=showtime["theater"],
-                start=datetime.fromisoformat(showtime["start_time"]),
-                end=datetime.fromisoformat(showtime["end_time"]),
+                start=showtime["start_time"],
+                end=showtime["end_time"]
             )
         )
 

@@ -15,7 +15,8 @@ from mailtrap import Address, Attachment, Mail, MailtrapClient
 from retriever import db
 from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
-from retriever.utils import date_ranges, date_range_to_str, get_days_to_scan, group_dict_by, group_obj_by, offset_timezone
+from retriever.utils import JsonEncoder, date_ranges, date_range_to_str, \
+        get_days_to_scan, group_dict_by, group_obj_by, offset_timezone
 
 MAILTRAP_EMAIL_SIZE_LIMIT = 10485760
 
@@ -121,7 +122,7 @@ def send_watchlist_notification():
 
     showdates_by_title = defaultdict(lambda: defaultdict(set))
     for showing in stored_showings:
-        showdate = datetime.fromisoformat(showing["start_time"]).date()
+        showdate = showing["start_time"].date()
         showdates_by_title[showing["title"]][showing["theater"]].add(showdate)
 
     watched = db.load_all_watchlists()
@@ -160,9 +161,9 @@ def _true_deletion_filter(deleted_showtimes, current_showtimes):
 @task
 def send_deletion_report():
     def _start_range(showtimes):
-        time_strs = sorted([s["start_time"] for s in showtimes])
-        start = datetime.fromisoformat(time_strs[0]).replace(hour=0, minute=0, second=0, microsecond=0)
-        end = datetime.fromisoformat(time_strs[-1]).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        dts = sorted([s["start_time"] for s in showtimes])
+        start = dts[0].replace(hour=0, minute=0, second=0, microsecond=0)
+        end = dts[-1].replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
         return start, end
 
     last_time = datetime.now()
@@ -183,8 +184,9 @@ def send_deletion_report():
         chunks = [filtered_deleted_showtimes[idx:idx + chunk_size] for idx in range(0, len(filtered_deleted_showtimes), chunk_size)]
 
         for idx, showtimes_chunk in enumerate(chunks, start=1):
-            deleted_showtimes_json = "[\n" + ",\n".join([f"  {json.dumps(s, sort_keys=True)}" for s in showtimes_chunk]) + "\n]"
+            # deleted_showtimes_json = "[\n" + ",\n".join([f"  {json.dumps(_showtime_to_json(s), sort_keys=True)}" for s in showtimes_chunk]) + "\n]"
             filename = f"deleted-{idx}.json" if len(chunks) > 1 else "deleted.json"
+            deleted_showtimes_json = json.dumps(showtimes_chunk, sort_keys=True, cls=JsonEncoder)
             deleted_attachment = _build_attachment(deleted_showtimes_json, filename)
 
             subject = f"Schedule Updater Deletion Report ({date_range_to_str([first_time, last_time])})"

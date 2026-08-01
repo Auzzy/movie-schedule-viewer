@@ -2,14 +2,16 @@ import calendar
 import json
 import os
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 
-class JsonSetEncoder(json.JSONEncoder):
+class JsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)
+        if isinstance(obj, (date, time, datetime)):
+            return obj.isoformat()
         return super().default(obj)
 
 

@@ -8,7 +8,7 @@ from ical.event import Event
 from mailtrap import Address, Attachment, Mail, MailtrapClient
 
 from retriever import db
-from retriever.movie_times_lib import collect_schedule, db_showtime_updates, \
+from retriever.movie_times_lib import collect_schedule, \
         email_theater_schedules, send_deletion_report, send_watchlist_notification
 from retriever.schedule import Filter, FullSchedule, ParseError, \
         date_range_str_parser as _raw_date_parser, time_str_parser as _raw_time_parser

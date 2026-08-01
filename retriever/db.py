@@ -18,11 +18,18 @@ def _read_showtimes_query(raw_rows, *, clean=True):
     for row_dict in raw_rows:
         row_dict["programs"] = set(json.loads(row_dict["programs"] or "[]"))
         row_dict["extra_properties"] = json.loads(row_dict["extra_properties"] or "{}")
-        if clean:
-            if "create_time" in row_dict:
+        row_dict["start_time"] = datetime.fromisoformat(row_dict["start_time"])
+        row_dict["end_time"] = datetime.fromisoformat(row_dict["end_time"])
+
+        if "create_time" in row_dict:
+            row_dict["create_time"] = datetime.fromisoformat(row_dict["create_time"])
+            if clean:
                 del row_dict["create_time"]
-            if "delete_time" in row_dict:
+        if "delete_time" in row_dict:
+            row_dict["delete_time"] = datetime.fromisoformat(row_dict["delete_time"])
+            if clean:
                 del row_dict["delete_time"]
+
         rows.append(row_dict)
     return rows
 
