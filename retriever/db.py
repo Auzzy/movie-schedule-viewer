@@ -92,9 +92,12 @@ def store_showtimes(schedule, *, clean=True):
         for new_showtime in new_showtimes:
             current_showtime = current_showtimes_by_key.get((new_showtime["id"], new_showtime["theater"]))
 
-            # TODO: Need to do something to handle screens, but I don't have time right now.
-            current_showtime_screen = current_showtime.pop("screen", None) if current_showtime else None
-            new_showtime_screen = new_showtime.pop("screen", None)
+            # Fandango screens are added later. This ensures their omission
+            # during showtime retrieval isn't treated as a mismatch.
+            current_showtime_screen = current_showtime.get("screen") if current_showtime else None
+            if current_showtime_screen and not new_showtime.get("screen"):
+                new_showtime["screen"] = current_showtime_screen
+
             if new_showtime != current_showtime:
                 to_insert.append(new_showtime | {"create_time": now})
                 if current_showtime:
