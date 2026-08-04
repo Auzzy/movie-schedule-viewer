@@ -160,6 +160,14 @@ def remove_showtime_from_schedule(showtime: dict[str, Any], client_id: Annotated
     db.remove_from_schedule(showtime, client_id=client_id)
     return {}
 
+@app.post("/schedule/sync/{theater}/{showtime_id}")
+def sync_showtime_to_schedule(theater: str, showtime_id: str, client_id: Annotated[str | None, Cookie()] = None):
+    _check_write_permission(client_id)
+
+    return {
+        "showtime": db.sync_showtime_to_schedule(showtime_id, theater, client_id=client_id)
+    }
+
 @app.get("/theaters")
 def request_theaters():
     theaters = db.get_theaters(is_open=True)

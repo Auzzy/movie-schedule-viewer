@@ -84,10 +84,16 @@ def _build_where_constraint(where_kwargs={}):
                 column_cast = ""
 
             where_parts.append(f"{column}{column_cast} {op} {right_operand}")
+            '''
             if isinstance(value, (list, tuple, set)):
                 where_params.extend([_cast_value(el) for el in value])
             else:
                 where_params.append(_cast_value(value))
+            '''
+            if isinstance(value, (list, tuple, set)):
+                where_params.extend(value)
+            else:
+                where_params.append(value)
 
     return " AND ".join(where_parts), tuple(where_params)
 
@@ -127,7 +133,8 @@ def _build_insert_values(assignments):
     for assignment in assignments:
         placeholders_str = ", ".join([f"{_PH}"] * len(assignment))
         values_pieces.append(f"({placeholders_str})")
-        insert_params.extend(_cast_value(value) for value in assignment.values())
+        # insert_params.extend(_cast_value(value) for value in assignment.values())
+        insert_params.extend(assignment.values())
 
     values_clause = f"VALUES {', '.join(values_pieces)}"
     columns_str = ", ".join(list(raw_columns)[0])
@@ -148,9 +155,11 @@ class connection():
     def _execute(self, query, params):
         if isinstance(query, list):
             query = " ".join(query)
+        
+        sql_params = [_cast_value(p) for p in params]
 
         cur = self.db.cursor()
-        cur.execute(query, params)
+        cur.execute(query, sql_params)
         return cur
 
     def select(self, table, columns=None, where=None, *, group_by=None, order_by=None):

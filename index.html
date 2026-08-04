@@ -80,8 +80,8 @@
 
                 return {
                     "title": title,
-                    "start": showtime["start_time"],
-                    "end": showtime["end_time"],
+                    "start": dayjs(showtime["start_time"]).toDate(),
+                    "end": dayjs(showtime["end_time"]).toDate(),
                     "extendedProps": {
                         "showtime": showtime
                     }
@@ -187,6 +187,19 @@
 
             function getSchedule(startTime, endTime) {
                 return get(`schedule/${startTime}/${endTime}`);
+            }
+
+            function syncShowtimeToSchedule(theater, showtimeId) {
+                return post(`schedule/sync/${theater}/${showtimeId}`);
+            }
+
+            function syncScheduleAndReload(theater, showtimeId) {
+                syncShowtimeToSchedule(theater, showtimeId)
+                    .then((showtime) => {
+                        var showtime = showtime["showtime"];
+                        showtime["programs"] = JSON.parse(showtime["programs"]);
+                        openShowtimePopup(showtimeToEvent(showtime));
+                    });
             }
 
             function resetMovieList() {
@@ -794,6 +807,9 @@
                 getSchedule(startStr, endStr).then((result) => {
                     clearCalendar(scheduleCalendar);
                     showtimesToEvents(result["schedule"]).forEach((event) => {
+                        if (event["extendedProps"]["showtime"]["mismatched_fields"].length > 0) {
+                            event["title"] = `\u{26A0}\u{FE0F} ${event["title"]}`;
+                        }
                         scheduleCalendar.addEvent(event);
                     });
                     scheduleCalendar.render();
@@ -861,9 +877,21 @@
                 if (programs?.length) {
                     programsStr = `<p>Programs: ${programs.join(", ")}</p>`;
                 }
+                
+                var mismatchedStr = "";
+                var mismatched = showtimeDetails["mismatched_fields"];
+                if (mismatched?.length > 0) {
+                    var theater = showtimeDetails["theater"];
+                    var id = showtimeDetails["id"];
+                    mismatchedStr = `<div style="margin-top: 16px; font-weight: bold;">
+                        \u{26A0}\u{FE0F}
+                        <span style="font-weight: bold;">Showtime out of sync.</span>
+                        <button onclick="syncScheduleAndReload('${theater}', '${id}');">Fix</button>
+                    </div>`;
+                }
 
                 var detailsEl = document.createElement("div");
-                detailsEl.innerHTML = formatStr + languageStr + programsStr;
+                detailsEl.innerHTML = formatStr + languageStr + programsStr + mismatchedStr;
 
                 var showtimeDetailsPopover = document.getElementById("showtime-details");
                 showtimeDetailsPopover.innerHTML = "";
