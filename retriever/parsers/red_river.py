@@ -14,7 +14,7 @@ MAIN_URL = "https://redrivertheatres.org/"
 SHOWTIMES_URL = "https://ticketing.useast.veezi.com/sessions/?siteToken=rh66des21wzqpsqgg0jkjqcr88"
 REQUEST_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'}
 RUNTIME_RE = re.compile(r"\((?P<runtime>\d{1,3}) min.*\) \d{4}")
-SHOWTIME_INFO_RE = re.compile(r"(?P<showtime>\d\d?:\d\d (?:am|pm)) Screen (?P<screen>\d)")
+SHOWTIME_INFO_RE = re.compile(r"(?P<showtime>\d\d?:\d\d (?:am|pm|AM|PM))(?: Screen (?P<screen>\d))?")
 
 def _retrieve_page(url):
     return requests.get(url, headers=REQUEST_HEADERS).text
