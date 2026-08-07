@@ -137,13 +137,12 @@ def store_showtimes(schedule, *, clean=True):
 
     with orm.connection() as conn:
         where = {"theater": schedule.theater, "start_time": [(">=", schedule.start), ("<=", schedule.end + timedelta(days=1))]}
-        current_showtimes = _read_showtimes_query(conn.select("showtimes", where=where))
-        current_showtimes_by_key = {(s["id"], s["theater"]): s for s in current_showtimes}
+        current_showtimes_by_id = {s["id"]: s for s in _read_showtimes_query(conn.select("showtimes", where=where))}
 
         now = datetime.now(timezone.utc).replace(microsecond=0)
         to_insert, to_delete = [], []
         for new_showtime in new_showtimes:
-            current_showtime = current_showtimes_by_key.get((new_showtime["id"], new_showtime["theater"]))
+            current_showtime = current_showtimes_by_id.pop(new_showtime["id"], None)
 
             # Fandango screens are added later. This ensures their omission
             # during showtime retrieval isn't treated as a mismatch.
@@ -157,10 +156,17 @@ def store_showtimes(schedule, *, clean=True):
                     to_delete.append(current_showtime | {"delete_time": now})
 
         if to_delete:
+            # Showtimes whose details have been changed; they'll be re-inserted with the correct details below.
             conn.insert("deleted_showtimes", to_delete)
             conn.delete("showtimes", {"theater": schedule.theater, "id": [("in", [s["id"] for s in to_delete])]})
 
+        if current_showtimes_by_id:
+            # Pre-existing showtimes that have disappeared i.e. their ID no longer shows up.
+            conn.insert("deleted_showtimes", [s | {"delete_time": now} for s in current_showtimes_by_id.values()])
+            conn.delete("showtimes", {"theater": schedule.theater, "id": [("in", current_showtimes_by_id.keys())]})
+
         if to_insert:
+            # Either inserting new showtimes, or re-adding those whose details changed.
             to_insert_with_timestamp = [showtime | {"create_time": now} for showtime in to_insert]
             conn.insert("showtimes", to_insert_with_timestamp, conflict={("id", "theater"): None})
 

@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from collections.abc import KeysView, ValuesView
 from datetime import date, datetime, time, timezone
 
 import psycopg2
@@ -36,12 +37,10 @@ def disconnect(db):
 def _cast_value(value):
     if isinstance(value, bool):
         return int(value)
-    elif isinstance(value, list):
+    elif isinstance(value, (list, dict)):
         return json.dumps(value)
     elif isinstance(value, set):
         return json.dumps(sorted(value))
-    elif isinstance(value, dict):
-        return json.dumps(value)
     elif isinstance(value, (datetime, date, time)):
         return value.isoformat()
     else:
@@ -84,13 +83,7 @@ def _build_where_constraint(where_kwargs={}):
                 column_cast = ""
 
             where_parts.append(f"{column}{column_cast} {op} {right_operand}")
-            '''
-            if isinstance(value, (list, tuple, set)):
-                where_params.extend([_cast_value(el) for el in value])
-            else:
-                where_params.append(_cast_value(value))
-            '''
-            if isinstance(value, (list, tuple, set)):
+            if isinstance(value, (list, tuple, set, KeysView, ValuesView)):
                 where_params.extend(value)
             else:
                 where_params.append(value)
@@ -133,7 +126,6 @@ def _build_insert_values(assignments):
     for assignment in assignments:
         placeholders_str = ", ".join([f"{_PH}"] * len(assignment))
         values_pieces.append(f"({placeholders_str})")
-        # insert_params.extend(_cast_value(value) for value in assignment.values())
         insert_params.extend(assignment.values())
 
     values_clause = f"VALUES {', '.join(values_pieces)}"
