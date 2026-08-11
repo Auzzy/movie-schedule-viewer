@@ -97,7 +97,8 @@ def _load_schedule(showtimes_json, theater_info):
             for showtime in showtimes_listing["showtimes"]:
                 id_ = showtime.get("id")
                 hash_ = showtime["showtimeHashCode"]
-                movie.add_raw_showing(id_, showtime["date"], day, tzname, fmt, None, language, programs, hash=hash_)
+                type_ = showtime["type"]
+                movie.add_raw_showing(id_, showtime["date"], day, tzname, fmt, None, language, programs, hash=hash_, type=type_)
 
     return schedule
 
