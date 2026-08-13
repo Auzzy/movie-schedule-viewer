@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
-from fastapi import Body, FastAPI, Cookie, Request, Response
+from fastapi import Body, Cookie, FastAPI, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -280,3 +280,37 @@ def schedule_rss(client_id: Annotated[str | None, Cookie()] = None, path_client_
     schedule = orm.load_whole_schedule(client_id=client_id)
     ics_stream = _showtimes_to_ics(schedule)
     return Response(content=ics_stream, media_type="text/calendar")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+############# START FOR NEW PAGE - SPLIT LATER ############################
+@app.get("/movie-finder", response_class=HTMLResponse)
+def movie_finder(request: Request):
+    return templates.TemplateResponse(request=request, name="moviefinder.html", context={})
+
+
+@app.get("/movie-finder/titles")
+def load_titles():
+    return {
+        "titles": orm.load_titles()
+    }
+
+@app.get("/movie-finder/{title}/showtimes")
+def title_showtimes(title: str):
+    return {
+        "showtimes": orm.title_showtimes(title)
+    }
