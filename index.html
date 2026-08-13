@@ -212,7 +212,7 @@
                     .then((showtime) => {
                         var showtime = showtime["showtime"];
                         showtime["programs"] = JSON.parse(showtime["programs"]);
-                        openShowtimePopup(showtimeToEvent(showtime));
+                        openShowtimePopup(showtimeToEvent(showtime), true);
                     });
             }
 
@@ -852,8 +852,12 @@
                 }
             }
 
-            function openShowtimePopup(showtime) {
+            function openShowtimePopup(showtime, scheduleCalendar) {
                 var showtimeDetails = showtime.extendedProps["showtime"];
+
+                var inSchedule = scheduleCalendar.getEvents().some((event) => {
+                    return event.extendedProps["showtime"]["id"] === showtimeDetails["id"];
+                });
 
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
@@ -865,6 +869,17 @@
 
                 var detailsEl = createEl("div");
                 detailsEl.appendChild(createEl("p", showtimeDetails["format"]));
+                
+                var scheduleButton = createEl("span", inSchedule ? "🛇" : "𝄜", undefined, {cursor: "pointer", paddingLeft: "5px"});
+                scheduleButton.addEventListener("click", function() {
+
+                });
+
+                var timeAndSchedule = createEl("div");
+                timeAndSchedule.appendChild(timeEl);
+                if (inSchedule !== undefined) {
+                    timeAndSchedule.appendChild(scheduleButton);
+                }
 
                 var rawLanguageStr = showtimeDetails["language"];
                 if (rawLanguageStr !== "UNKNOWN") {
@@ -891,20 +906,24 @@
 
                 var headerEl = createEl("div", undefined, undefined, {float: "left", maxWidth: "90%", paddingBottom: "5px"});
                 headerEl.appendChild(titleEl);
-                headerEl.appendChild(timeEl);
+                // headerEl.appendChild(timeEl);
+                headerEl.appendChild(timeAndSchedule);
                 if (showtimeDetails["screen"]?.length) {
                     headerEl.appendChild(screenEl);
                 }
                 headerEl.appendChild(theaterEl);
 
-                var closeButton = createEl("div", "✖", undefined, {float: "right", fontSize: "xx-large", cursor: "pointer"});
+                var closeButton = createEl("div", "✖", undefined, {cursor: "pointer"});
                 closeButton.addEventListener("click", function() {
                    showtimeDetailsPopover.hidePopover();
                 });
 
+                var headerRightEl = createEl("div", undefined, undefined, {float: "right", fontSize: "xx-large"});
+                headerRightEl.appendChild(closeButton);
+
                 var headerWrapperEl = createEl("div");
                 headerWrapperEl.appendChild(headerEl);
-                headerWrapperEl.appendChild(closeButton);
+                headerWrapperEl.appendChild(headerRightEl);
 
                 var showtimeDetailsPopover = Object.assign(document.getElementById("showtime-details"), {innerHTML: ""});
                 showtimeDetailsPopover.appendChild(headerWrapperEl);
@@ -1134,7 +1153,7 @@
                         if (clickInfo.jsEvent.ctrlKey) {
                             addToSchedule(clickInfo.event, scheduleCalendar);
                         } else {
-                            openShowtimePopup(clickInfo.event);
+                            openShowtimePopup(clickInfo.event, scheduleCalendar);
                         }
                         {% else %}
                         openShowtimePopup(clickInfo.event);
@@ -1193,7 +1212,7 @@
                             clickInfo.event.remove();
                             post("schedule/remove-showtime", clickInfo.event.extendedProps["showtime"]);
                         } else {
-                            openShowtimePopup(clickInfo.event);
+                            openShowtimePopup(clickInfo.event, true);
                         }
                     }
                 });
@@ -1219,7 +1238,7 @@
                         if (clickInfo.jsEvent.ctrlKey) {
                             addToSchedule(clickInfo.event, scheduleCalendar);
                         } else {
-                            openShowtimePopup(clickInfo.event);
+                            openShowtimePopup(clickInfo.event, scheduleCalendar);
                         }
                         {% else %}
                         openShowtimePopup(clickInfo.event);
