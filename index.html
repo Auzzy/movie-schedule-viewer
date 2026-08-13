@@ -62,6 +62,20 @@
                 return null;
             }
             {% endif %}
+            
+            function createEl(tag, text, properties, style) {
+                if (properties === undefined || properties === null) {
+                    properties = {};
+                }
+                if (text !== undefined) {
+                    properties["innerHTML"] = text;
+                }
+                var el = Object.assign(document.createElement(tag), properties);
+                if (style !== undefined && style !== null) {
+                    Object.assign(el.style, style);
+                }
+                return el;
+            }
 
             function timeStr(date) {
                 var hoursRaw = date.getHours() % 12;
@@ -260,19 +274,15 @@
 
             function createToggleElement(id, label, initialChecked) {
                 var initialChecked = initialChecked === undefined ? true : initialChecked;
-                var checkboxEl = Object.assign(document.createElement("input"), {type: "checkbox", checked: initialChecked});
-                var sliderEl = Object.assign(document.createElement("span"), {className: "slider round"});
-                var switchEl = Object.assign(document.createElement("label"), {className: "switch"});
-                switchEl.style.verticalAlign = "middle";
+                var checkboxEl = createEl("input", undefined, {type: "checkbox", checked: initialChecked});
+                var sliderEl = createEl("span", undefined, {className: "slider round"});
+                var switchEl = createEl("label", undefined, {className: "switch"}, {verticalAlign: "middle"});
                 switchEl.appendChild(checkboxEl);
                 switchEl.appendChild(sliderEl);
 
-                var labelEl = Object.assign(document.createElement("label"), {innerHTML: label});
-                Object.assign(labelEl.style, {display: "inline-block", verticalAlign: "middle", marginLeft: "4px", width: "60%"});
+                var labelEl = createEl("label", label, undefined, {display: "inline-block", verticalAlign: "middle", marginLeft: "4px", width: "60%"});
 
-                var toggleEl = Object.assign(document.createElement("div"), {id: id});
-                toggleEl.style.paddingTop = "2px";
-                toggleEl.style.paddingBottom = "2px";
+                var toggleEl = createEl("div", undefined, {id: id}, {paddingTop: "2px", paddingBottom: "2px"});
                 toggleEl.dataset.label = label;
                 toggleEl.appendChild(switchEl);
                 toggleEl.appendChild(labelEl);
@@ -556,9 +566,7 @@
             }
 
             function createMovieListOpenListingButton(showtimesCalendar, listingCalendar, showtimeFilter) {
-                var openListingEl = document.createElement('button');
-                openListingEl.classList.add("movielistbutton");
-                openListingEl.innerHTML = "&#x1f4c5";
+                var openListingEl = createEl("button", "&#x1f4c5", {className: "movielistbutton"});
                 openListingEl.popoverTargetElement = document.getElementById("movie-showtime-listing");
                 openListingEl.addEventListener("click", (e) => {
                     return openListingClickHandler(e, showtimesCalendar, listingCalendar, showtimeFilter)
@@ -577,10 +585,7 @@
             }
 
             function createMovieListTitleEl(title) {
-                var titleEl = document.createElement("div");
-                titleEl.innerHTML = title;
-                titleEl.style.flex = "80%";
-                return titleEl;
+                return createEl("div", title, undefined, {flex: "80%"});
             }
 
             function movieListClickHandler(showtimesCalendar, listingCalendar, entry, bgColor, textColor) {
@@ -636,7 +641,7 @@
             function createMovieListItemEl(showtimesCalendar, listingCalendar, details) {
                 var display = details["display"];
 
-                var entry = document.createElement('div');
+                var entry = createEl("div", undefined, {className: "movielistentry"}, {borderColor: display["bgColor"]});
                 entry.dataset.title = details["title"];
                 entry.dataset.formats = details["formats"].toSorted().join(",");
                 details["formats"].forEach((fmtLabel) => {
@@ -661,8 +666,6 @@
                 entry.dataset.first = details["first"];
                 entry.dataset.last = details["last"];
 
-                entry.classList.add("movielistentry");
-                entry.style.borderColor = display["bgColor"];
                 entry.dataset.visible = display["visible"].toString();
                 entry.dataset.bgColor = display["bgColor"];
                 entry.dataset.textColor = display["textColor"];
@@ -681,8 +684,7 @@
             }
 
             function createMovieListParentEl(title) {
-                var parent = document.createElement('div');
-                parent.style.position = "relative";
+                var parent = createEl("div", undefined, undefined, {position: "relative"});
                 parent.dataset.movieListEntry = title;
                 return parent;
             }
@@ -856,46 +858,38 @@
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
-                var titleEl = Object.assign(document.createElement("h2"), {innerText: showtimeDetails["title"]});
-                titleEl.style.margin = "0px 0px 5px 0px";
+                var titleEl = createEl("h2", showtimeDetails["title"], undefined, {margin: "0px 0px 5px 0px"});
+                var timeEl = createEl("div", `<i>${startDisplayStr} - ${endDisplayStr}</i>`);
+                var screenEl = createEl("div", `<i>Screen ${showtimeDetails["screen"]}</i>`);
+                var theaterEl = createEl("div", `<i>${showtimeDetails["theater"]}</i>`);
 
-                var timeEl = Object.assign(document.createElement("div"), {innerHTML: `<i>${startDisplayStr} - ${endDisplayStr}</i>`});
-                var screenEl = Object.assign(document.createElement("div"), {innerHTML: `<i>Screen ${showtimeDetails["screen"]}</i>`});
-                var theaterEl = Object.assign(document.createElement("div"), {innerHTML: `<i>${showtimeDetails["theater"]}</i>`});
-
-
-                var detailsEl = document.createElement("div");
-
-                var formatEl = Object.assign(document.createElement("p"), {innerText: showtimeDetails["format"]});
-                detailsEl.appendChild(formatEl);
+                var detailsEl = createEl("div");
+                detailsEl.appendChild(createEl("p", showtimeDetails["format"]));
 
                 var rawLanguageStr = showtimeDetails["language"];
                 if (rawLanguageStr !== "UNKNOWN") {
-                    var languageEl = Object.assign(document.createElement("p"), {innerText: `Language: ${rawLanguageStr}`});
-                    detailsEl.appendChild(languageEl);
+                    detailsEl.appendChild(createEl("p", `Language: ${rawLanguageStr}`));
                 }
 
                 var programs = showtimeDetails["programs"];
                 if (programs?.length) {
-                    var programsEl = Object.assign(document.createElement("p"), {innerText: `Programs: ${programs.join(", ")}`});
-                    detailsEl.appendChild(programsEl);
+                    detailsEl.appendChild(createEl("p", `Programs: ${programs.join(", ")}`));
                 }
 
                 if (showtimeDetails["mismatched_fields"]?.length > 0) {
-                    var msgEl = Object.assign(document.createElement("span"), {innerText: "Showtime out of sync."});
-                    msgEl.style.fontWeight = "bold";
-                    var fixBtn = Object.assign(document.createElement("button", {innerText: "Fix"}));
+                    var msgEl = createEl("span", "Showtime out of sync.", undefined, {fontWeight: "bold"});
+                    var fixBtn = createEl("button", "Fix");
                     fixBtn.addEventListener("click", function() {
                         syncScheduleAndReload(showtimeDetails["theater"], showtimeDetails["id"]);
                     });
-                    var mismatchedEl = Object.assign(document.createElement("div"), {innerText: "\u{26A0}\u{FE0F}"});
-                    Object.assign(mismatchedStr.style, {marginTop: "16px", fontWeight: "bold"});
+                    var mismatchedEl = createEl("div", "\u{26A0}\u{FE0F}", undefined, {marginTop: "16px", fontWeight: "bold"});
+                    mismatchedEl.appendChild(msgEl);
+                    mismatchedEl.appendChild(fixBtn);
 
                     detailsEl.appendChild(mismatchedEl);
                 }
 
-                var headerEl = document.createElement("div");
-                Object.assign(headerEl.style, {float: "left", maxWidth: "90%", paddingBottom: "5px"});
+                var headerEl = createEl("div", undefined, undefined, {float: "left", maxWidth: "90%", paddingBottom: "5px"});
                 headerEl.appendChild(titleEl);
                 headerEl.appendChild(timeEl);
                 if (showtimeDetails["screen"]?.length) {
@@ -903,21 +897,18 @@
                 }
                 headerEl.appendChild(theaterEl);
 
-                var closeButton = Object.assign(document.createElement("div"), {innerText: "✖"});
-                Object.assign(closeButton.style, {float: "right", fontSize: "xx-large", cursor: "pointer"});
+                var closeButton = createEl("div", "✖", undefined, {float: "right", fontSize: "xx-large", cursor: "pointer"});
                 closeButton.addEventListener("click", function() {
                    showtimeDetailsPopover.hidePopover();
                 });
 
-                var headerWrapperEl = document.createElement("div");
+                var headerWrapperEl = createEl("div");
                 headerWrapperEl.appendChild(headerEl);
                 headerWrapperEl.appendChild(closeButton);
 
                 var showtimeDetailsPopover = Object.assign(document.getElementById("showtime-details"), {innerHTML: ""});
                 showtimeDetailsPopover.appendChild(headerWrapperEl);
-                var dividerEl = document.createElement("hr");
-                dividerEl.style.clear = "both";
-                showtimeDetailsPopover.appendChild(dividerEl);
+                showtimeDetailsPopover.appendChild(createEl("hr", undefined, undefined, {clear: "both"}));
                 showtimeDetailsPopover.appendChild(detailsEl);
                 showtimeDetailsPopover.showPopover();
             }
@@ -946,16 +937,15 @@
             }
 
             function createTheaterSelectorEl(theater) {
-                var nameEl = Object.assign(document.createElement("div"), {innerHTML: theater});
+                var nameEl = createEl("div", theater);
 
-                var lastUpdatedTimeEl = document.createElement("span");
+                var lastUpdatedTimeEl = createEl("span");
                 lastUpdatedTimeEl.dataset.iso = "";
 
-                var lastUpdatedEl = Object.assign(document.createElement("div"), {innerHTML: "Updated "});
-                Object.assign(lastUpdatedEl.style, {color: "gray", fontSize: "0.65em"});
+                var lastUpdatedEl = createEl("div", "Updated ", undefined, {color: "gray", fontSize: "0.65em"});
                 lastUpdatedEl.appendChild(lastUpdatedTimeEl);
 
-                var dropdownItemEl = Object.assign(document.createElement("a"), {href: "#", className: "dropdown-item"});
+                var dropdownItemEl = createEl("a", undefined, {href: "#", className: "dropdown-item"});
                 dropdownItemEl.dataset.theater = theater;
                 dropdownItemEl.appendChild(nameEl);
                 dropdownItemEl.appendChild(lastUpdatedEl);
@@ -1000,12 +990,9 @@
             function addTitleToWatchlistPopover(title) {
                 var watchlistRoot = document.getElementById("watchlist");
 
-                var entryTitleEl = Object.assign(document.createElement("span"), {innerHTML: title});
-                entryTitleEl.style.float = "left";
-                entryTitleEl.style.maxWidth = "85%"
+                var entryTitleEl = createEl("span", title, {float: "left", maxWidth: "85%"});
 
-                var entryDeleteEl = Object.assign(document.createElement("span"), {innerHTML: "&#x1F5D1"});
-                entryDeleteEl.style.float = "right";
+                var entryDeleteEl = createEl("span", "&#x1F5D1", undefined, {float: "right"});
                 entryDeleteEl.addEventListener("click", function() {
                     var parentAccordion = entryDeleteEl.parentNode.parentNode;
                     var title = parentAccordion.dataset.movie;
@@ -1015,7 +1002,7 @@
                         });
                 })
 
-                var accordionButtonEl = Object.assign(document.createElement("button"), {className: "accordion accordion-style"});
+                var accordionButtonEl = createEl("button", undefined, {className: "accordion accordion-style"});
                 accordionButtonEl.appendChild(entryTitleEl);
                 accordionButtonEl.appendChild(entryDeleteEl);
                 accordionButtonEl.addEventListener("click", function() {
@@ -1032,9 +1019,9 @@
                 });
 
                 // To make use of the accordion control in the future, add content to this panel.
-                var panelEl = Object.assign(document.createElement("div"), {className: "panel"});
+                var panelEl = createEl("div", undefined, {className: "panel"});
 
-                var watchlistEntry = document.createElement("div");
+                var watchlistEntry = createEl("div");
                 watchlistEntry.dataset.movie = title;
                 watchlistEntry.appendChild(accordionButtonEl);
                 watchlistEntry.appendChild(panelEl);
