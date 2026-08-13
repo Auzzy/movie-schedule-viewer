@@ -866,6 +866,9 @@
                 var screenEl = document.createElement("div");
                 screenEl.innerHTML = `<i>Screen ${showtimeDetails["screen"]}</i>`
 
+                var theaterEl = document.createElement("div");
+                theaterEl.innerHTML = `<i>${showtimeDetails["theater"]}</i>`;
+
                 var rawFormatStr = showtimeDetails["format"];
                 var formatStr = `<p>${rawFormatStr}</p>`;
 
@@ -900,6 +903,7 @@
                 if (showtimeDetails["screen"]?.length) {
                     showtimeDetailsPopover.appendChild(screenEl);
                 }
+                showtimeDetailsPopover.appendChild(theaterEl);
                 showtimeDetailsPopover.appendChild(document.createElement("hr"));
                 showtimeDetailsPopover.appendChild(detailsEl);
                 showtimeDetailsPopover.showPopover();
