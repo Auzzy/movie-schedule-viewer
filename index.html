@@ -958,7 +958,7 @@
                 var dropdownEl = document.getElementById("theater-dropdown");
                 var dropdownMenuEl = document.getElementById("theater-options");
                 dropdownEl.addEventListener("click", function(e) {
-                    dropdownMenuEl.classList.add("dropdown-menu-hover");
+                    dropdownMenuEl.classList.toggle("dropdown-menu-hover");
                 });
                 dropdownEl.addEventListener("mouseenter", function(e) {
                     dropdownMenuEl.classList.add("dropdown-menu-hover");
