@@ -177,10 +177,11 @@ def store_showtimes(schedule, *, clean=True):
     return showtimes, deleted_showtimes
 
 
-def update_showtime_screens(hash_to_auditorium):
+def update_screens(hash_to_auditorium):
     with orm.connection() as conn:
         for hash_code, auditorium in hash_to_auditorium.items():
             conn.update("showtimes", {"screen": auditorium}, {"extra_properties": [("like", f"%{hash_code}%")]})
+            conn.update("schedule", {"screen": auditorium}, {"extra_properties": [("like", f"%{hash_code}%")]})
 
 
 def load_visibility(*, client_id):

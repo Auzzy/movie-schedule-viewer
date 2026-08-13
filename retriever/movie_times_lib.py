@@ -232,7 +232,7 @@ def add_theater_from_search(query, *, name=None, rank=None):
 
 def _gather_fandango_screens(showtimes):
     hash_to_auditorium = fandango_json.gather_seat_info(showtimes)
-    db.update_showtime_screens(hash_to_auditorium)
+    db.update_screens(hash_to_auditorium)
 
 
 def gather_fandango_screens_new_showtimes(first_create_time):
