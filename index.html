@@ -207,12 +207,12 @@
                 return post(`schedule/sync/${theater}/${showtimeId}`);
             }
 
-            function syncScheduleAndReload(theater, showtimeId) {
+            function syncScheduleAndReload(theater, showtimeId, scheduleCalendar) {
                 syncShowtimeToSchedule(theater, showtimeId)
                     .then((showtime) => {
                         var showtime = showtime["showtime"];
                         showtime["programs"] = JSON.parse(showtime["programs"]);
-                        openShowtimePopup(showtimeToEvent(showtime));
+                        openShowtimePopup(showtimeToEvent(showtime), scheduleCalendar);
                     });
             }
 
@@ -852,16 +852,53 @@
                 }
             }
 
-            function openShowtimePopup(showtime) {
+            function removeFromSchedule(event, scheduleCalendar) {
+                event.remove();
+                post("schedule/remove-showtime", event.extendedProps["showtime"]);
+            }
+
+            function findInScheduleById(scheduleCalendar, showtimeDetails) {
+                return scheduleCalendar.getEvents().find((event) => event.extendedProps["showtime"]["id"] === showtimeDetails["id"]);
+            }
+
+            function showtimePopupScheduleButton(showtime, scheduleCalendar) {
+                function editSchedulerIcon(inSchedule) {
+                    return inSchedule ? "⦸" : "𝄜";
+                }
+
+                var inSchedule = findInScheduleById(scheduleCalendar, showtime.extendedProps["showtime"]) !== undefined;
+                var scheduleButton = createEl("span", editSchedulerIcon(inSchedule), undefined, {cursor: "pointer", paddingLeft: "5px"});
+                scheduleButton.dataset.inSchedule = inSchedule.toString();
+                scheduleButton.addEventListener("click", function() {
+                    var inScheduleToggle = scheduleButton.dataset.inSchedule === "true";
+                    if (inScheduleToggle) {
+                        var scheduleEvent = findInScheduleById(scheduleCalendar, showtime.extendedProps["showtime"]);
+                        removeFromSchedule(scheduleEvent, scheduleCalendar);
+                    } else {
+                        addToSchedule(showtime, scheduleCalendar);
+                    }
+                    scheduleButton.innerText = editSchedulerIcon(!inScheduleToggle);
+                    scheduleButton.dataset.inSchedule = (!inScheduleToggle).toString();
+                });
+                return scheduleButton;
+            }
+
+            function openShowtimePopup(showtime, scheduleCalendar) {
                 var showtimeDetails = showtime.extendedProps["showtime"];
 
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
                 var titleEl = createEl("h2", showtimeDetails["title"], undefined, {margin: "0px 0px 5px 0px"});
-                var timeEl = createEl("div", `<i>${startDisplayStr} - ${endDisplayStr}</i>`);
                 var screenEl = createEl("div", `<i>Screen ${showtimeDetails["screen"]}</i>`);
                 var theaterEl = createEl("div", `<i>${showtimeDetails["theater"]}</i>`);
+
+                var timeAndSchedule = createEl("div");
+                timeAndSchedule.appendChild(createEl("i", `${startDisplayStr} - ${endDisplayStr}`));
+                if (scheduleCalendar !== undefined) {
+                    var scheduleButton = showtimePopupScheduleButton(showtime, scheduleCalendar);
+                    timeAndSchedule.appendChild(scheduleButton);
+                }
 
                 var detailsEl = createEl("div");
                 detailsEl.appendChild(createEl("p", showtimeDetails["format"]));
@@ -880,7 +917,7 @@
                     var msgEl = createEl("span", "Showtime out of sync.", undefined, {fontWeight: "bold"});
                     var fixBtn = createEl("button", "Fix");
                     fixBtn.addEventListener("click", function() {
-                        syncScheduleAndReload(showtimeDetails["theater"], showtimeDetails["id"]);
+                        syncScheduleAndReload(showtimeDetails["theater"], showtimeDetails["id"], scheduleCalendar);
                     });
                     var mismatchedEl = createEl("div", "\u{26A0}\u{FE0F}", undefined, {marginTop: "16px", fontWeight: "bold"});
                     mismatchedEl.appendChild(msgEl);
@@ -891,20 +928,23 @@
 
                 var headerEl = createEl("div", undefined, undefined, {float: "left", maxWidth: "90%", paddingBottom: "5px"});
                 headerEl.appendChild(titleEl);
-                headerEl.appendChild(timeEl);
+                headerEl.appendChild(timeAndSchedule);
                 if (showtimeDetails["screen"]?.length) {
                     headerEl.appendChild(screenEl);
                 }
                 headerEl.appendChild(theaterEl);
 
-                var closeButton = createEl("div", "✖", undefined, {float: "right", fontSize: "xx-large", cursor: "pointer"});
+                var closeButton = createEl("div", "✖", undefined, {cursor: "pointer"});
                 closeButton.addEventListener("click", function() {
                    showtimeDetailsPopover.hidePopover();
                 });
 
+                var headerRightEl = createEl("div", undefined, undefined, {float: "right", fontSize: "xx-large"});
+                headerRightEl.appendChild(closeButton);
+
                 var headerWrapperEl = createEl("div");
                 headerWrapperEl.appendChild(headerEl);
-                headerWrapperEl.appendChild(closeButton);
+                headerWrapperEl.appendChild(headerRightEl);
 
                 var showtimeDetailsPopover = Object.assign(document.getElementById("showtime-details"), {innerHTML: ""});
                 showtimeDetailsPopover.appendChild(headerWrapperEl);
@@ -1134,7 +1174,7 @@
                         if (clickInfo.jsEvent.ctrlKey) {
                             addToSchedule(clickInfo.event, scheduleCalendar);
                         } else {
-                            openShowtimePopup(clickInfo.event);
+                            openShowtimePopup(clickInfo.event, scheduleCalendar);
                         }
                         {% else %}
                         openShowtimePopup(clickInfo.event);
@@ -1190,10 +1230,9 @@
                     },
                     eventClick: function(clickInfo) {
                         if (clickInfo.jsEvent.ctrlKey) {
-                            clickInfo.event.remove();
-                            post("schedule/remove-showtime", clickInfo.event.extendedProps["showtime"]);
+                            removeFromSchedule(clickInfo.event, scheduleCalendar);
                         } else {
-                            openShowtimePopup(clickInfo.event);
+                            openShowtimePopup(clickInfo.event, scheduleCalendar);
                         }
                     }
                 });
@@ -1219,7 +1258,7 @@
                         if (clickInfo.jsEvent.ctrlKey) {
                             addToSchedule(clickInfo.event, scheduleCalendar);
                         } else {
-                            openShowtimePopup(clickInfo.event);
+                            openShowtimePopup(clickInfo.event, scheduleCalendar);
                         }
                         {% else %}
                         openShowtimePopup(clickInfo.event);
