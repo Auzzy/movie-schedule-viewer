@@ -856,9 +856,9 @@
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
-                var headerEl = document.createElement("h2");
-                headerEl.innerHTML = showtimeDetails["title"];
-                headerEl.style.margin = "0px 0px 5px 0px";
+                var titleEl = document.createElement("h2");
+                titleEl.innerHTML = showtimeDetails["title"];
+                titleEl.style.margin = "0px 0px 5px 0px";
 
                 var timeEl = document.createElement("div");
                 timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
@@ -896,15 +896,30 @@
                 var detailsEl = document.createElement("div");
                 detailsEl.innerHTML = formatStr + languageStr + programsStr + mismatchedStr;
 
-                var showtimeDetailsPopover = document.getElementById("showtime-details");
-                showtimeDetailsPopover.innerHTML = "";
-                showtimeDetailsPopover.appendChild(headerEl);
-                showtimeDetailsPopover.appendChild(timeEl);
+                var headerEl = document.createElement("div");
+                Object.assign(headerEl.style, {float: "left", maxWidth: "90%", paddingBottom: "5px"});
+                headerEl.appendChild(titleEl);
+                headerEl.appendChild(timeEl);
                 if (showtimeDetails["screen"]?.length) {
-                    showtimeDetailsPopover.appendChild(screenEl);
+                    headerEl.appendChild(screenEl);
                 }
-                showtimeDetailsPopover.appendChild(theaterEl);
-                showtimeDetailsPopover.appendChild(document.createElement("hr"));
+                headerEl.appendChild(theaterEl);
+
+                var closeButton = Object.assign(document.createElement("div"), {innerText: "✖"});
+                Object.assign(closeButton.style, {float: "right", fontSize: "xx-large", cursor: "pointer"});
+                closeButton.addEventListener("click", function() {
+                   showtimeDetailsPopover.hidePopover();
+                });
+
+                var headerWrapperEl = document.createElement("div");
+                headerWrapperEl.appendChild(headerEl);
+                headerWrapperEl.appendChild(closeButton);
+
+                var showtimeDetailsPopover = Object.assign(document.getElementById("showtime-details"), {innerHTML: ""});
+                showtimeDetailsPopover.appendChild(headerWrapperEl);
+                var dividerEl = document.createElement("hr");
+                dividerEl.style.clear = "both";
+                showtimeDetailsPopover.appendChild(dividerEl);
                 showtimeDetailsPopover.appendChild(detailsEl);
                 showtimeDetailsPopover.showPopover();
             }
