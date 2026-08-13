@@ -373,6 +373,34 @@ def load_all_runtime_overrides():
 
     return overrides
 
+
+def load_titles():
+    with db.connection() as conn:
+        return conn.select("showtimes", ["title"], distinct=True)
+
+
+def title_showtimes(title):
+    with db.connection() as conn:
+        return _read_showtimes_query(conn.select("showtimes", where={"title": title}))
+
+
+def filter_showtimes(title, *, theaters=[], start_range=(None, None)):
+    where = {"title": title}
+    if theaters:
+        where["theater"] = [("in", theaters)]
+    if start_range:
+        start_time_filter = []
+        if start_range[0]:
+            start_time_filter.append((">=", start_range[0]))
+        if start_range[-1]:
+            start_time_filter.append(("<=", start_range[-1]))
+        if start_time_filter:
+            where["start_time"] = start_time_filter
+
+    with db.connection() as conn:
+        return _read_showtimes_query(conn.select("showtimes", where=where))
+
+
 def _init_db():
     with db.connection() as conn:
         cur = conn.db.cursor()

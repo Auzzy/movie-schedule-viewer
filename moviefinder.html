@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang='en'>
+    <head>
+        <!-- THESE SHOULD ALL COME FROM THE OTHER FILE -->
+        <meta charset='utf-8' />
+        <link rel="stylesheet" href="static/accordion.css" />
+        <link rel="stylesheet" href="static/dropdown.css" />
+        <link rel="stylesheet" href="static/slider.css" />
+        <link rel="stylesheet" href="static/list.css" />
+        <link rel="stylesheet" href="static/base.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.18/dayjs.min.js" integrity="sha512-FwNWaxyfy2XlEINoSnZh1JQ5TRRtGow0D6XcmAWmYCRgvqOUTnzCxPc9uF35u5ZEpirk1uhlPVA19tflhvnW1g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <!-- END DUPLICATE LINK SECTION -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+
+        <script>
+            /********** TO COME FROM THE OTHER FILE ONCE I MERGE THEM ***************/
+			const COLORS = [
+                {text: "black", bg: "pink"},
+                {text: "black", bg: "violet"},
+                {text: "white", bg: "magenta"},
+                {text: "white", bg: "maroon"},
+                {text: "white", bg: "crimson"},
+                {text: "black", bg: "salmon"},
+                {text: "black", bg: "coral"},
+                {text: "black", bg: "orange"},
+                {text: "black", bg: "sandybrown"},
+                {text: "black", bg: "gold"},
+                {text: "black", bg: "greenyellow"},
+                {text: "black", bg: "palegreen"},
+                {text: "black", bg: "lime"},
+                {text: "black", bg: "skyblue"},
+                {text: "white", bg: "green"},
+                {text: "white", bg: "blue"},
+                {text: "white", bg: "purple"},
+                {text: "white", bg: "slateblue"},
+                {text: "white", bg: "slategray"},
+                {text: "white", bg: "olive"},
+                {text: "white", bg: "saddlebrown"},
+                {text: "white", bg: "brown"},
+                {text: "black", bg: "rosybrown"},
+                {text: "black", bg: "burlywood"},
+                {text: "black", bg: "thistle"},
+            ];
+
+
+            function request(method, path, bodyJson) {
+                const url = `/${path}`;
+                return fetch(url, {method: method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(bodyJson)})
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error(`Response status: ${response.status}`);
+                        }
+
+                        if (response.headers.get("content-type") == "application/json") {
+                            return response.json();
+                        } else {
+                            return response.text();
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error(error.message);
+                        return {};
+                    });
+            }
+
+            // NOTE: The query parameter handling is new.
+            function get(path, params) {
+                if (params !== undefined) {
+                    path = `${path}?${new URLSearchParams(params)}`;
+                }
+                return request("GET", path);
+            }
+            /******************** END DUPLICATE SECTION *******************/
+
+            function allTitles() {
+                return get("movie-finder/titles")
+                    .then((result) => result["titles"]);
+            }
+
+            function loadTitleShowtimes(title) {
+                return get(`movie-finder/${encodeURIComponent(title)}/showtimes`)
+                    .then((result) => result["showtimes"]);
+            }
+
+            function changeDateSelection(selectedDates, dateStr, instance) {
+                var [startDate, endDate] = selectedDates.map((d) => dayjs(d));
+
+                var showtimesEl = document.getElementById("movie-finder-showtimes");
+                Array.from(showtimesEl.children).forEach((dayEl) => {
+                    var day = dayjs(dayEl.dataset.day);
+                    dayEl.style.display = day.isBefore(startDate) || day.isAfter(endDate) ? "none" : "block";
+                });
+            }
+
+            function filterTitles() {
+                var query = document.getElementById("movie-finder-input").value;
+                var matchingTitlesEl = document.getElementById("movie-finder-titles");
+                Array.from(matchingTitlesEl.children).forEach((entryEl) => {
+                    entryEl.style.display = entryEl.dataset.title.toLowerCase().includes(query) ? "" : "none";
+                });
+            }
+
+            function renderShowtimes(title, theaterColors) {
+                var showtimesEl = document.getElementById("movie-finder-showtimes");
+                showtimesEl.innerHTML = "";
+
+                document.getElementById("movie-finder-showtimes-header").innerText = title;
+
+                loadTitleShowtimes(title)
+                    .then(function(result) {
+                        var showtimesByDay = Object.groupBy(result, (s) => dayjs(s["start_time"]).startOf("day"));
+
+                        var dates = Object.keys(showtimesByDay).map((s) => dayjs(s));
+                        var firstDate = new Date(Math.min(...dates));
+                        var lastDate = new Date(Math.max(...dates));
+                
+                        var dateRangePickerEl = document.querySelector("#date-range-picker");
+                        dateRangePickerEl.style.display = "block";
+
+                        var dateRangePicker = dateRangePickerEl._flatpickr;
+                        dateRangePicker.set("minDate", firstDate);
+                        dateRangePicker.set("maxDate", lastDate);
+                        dateRangePicker.setDate([firstDate, lastDate]);
+
+                        Object.entries(showtimesByDay)
+                            .forEach(([day, dayShowtimes]) => {
+                                var dayHeaderEl = Object.assign(document.createElement("h4"), {innerText: dayjs(day).format("MMM D, YYYY")});
+                                var dayShowtimesEl = document.createElement("div");
+                                dayShowtimes.toSorted((a, b) => a["start_time"].localeCompare(b["start_time"])).forEach((showtime) => {
+                                    var entryText = `[${showtime["theater"]}] ${dayjs(showtime["start_time"]).format("h:mma")} (${showtime["format"]})`;
+                                    var entryColor = theaterColors[showtime["theater"]];
+
+                                    var entryEl = Object.assign(document.createElement("li"), {innerText: entryText});
+                                    Object.assign(entryEl.dataset, {start: showtime["start_time"], format: showtime["format"]});
+                                    Object.assign(entryEl.style, {backgroundColor: entryColor["bg"], color: entryColor["text"]});
+
+                                    dayShowtimesEl.appendChild(entryEl);
+                                });
+                                
+                                var dayEl = document.createElement("div");
+                                dayEl.dataset.day = dayjs(day).startOf("day").toISOString();
+                                dayEl.appendChild(dayHeaderEl);
+                                dayEl.appendChild(dayShowtimesEl);
+
+                                showtimesEl.appendChild(dayEl);
+                            });
+                    });
+            }
+
+            function loadTitleList(theaterColors) {
+                var matchingTitlesEl = document.getElementById("movie-finder-titles");
+                matchingTitlesEl.innerHTML = "";
+                var showtimesEl = document.getElementById("movie-finder-showtimes");
+                showtimesEl.innerHTML = "";
+
+                allTitles().then((titles) => {
+                    Array.from(titles).toSorted((a, b) => a["title"].localeCompare(b["title"])).forEach((movieInfo) => {
+                        var entryEl = Object.assign(document.createElement("li"), {innerText: movieInfo["title"]});
+                        entryEl.dataset.title = movieInfo["title"];
+                        entryEl.addEventListener("click", function(event) {
+                            renderShowtimes(event.currentTarget.dataset.title, theaterColors);
+                        });
+                        matchingTitlesEl.append(entryEl);
+                    });
+                });
+            }
+
+            function assignTheaterColors() {
+                return get("theaters")
+                    .then(function(result) {
+                        var theaterNames = result["names"];
+                        var stepSize = Math.floor(COLORS.length / theaterNames.length);
+                        return Object.fromEntries(theaterNames.map((theater, index) => [theater, COLORS[index * stepSize]]));
+                    });
+            }
+            
+            document.addEventListener('DOMContentLoaded', function() {
+                flatpickr("#date-range-picker", {mode: "range", onClose: changeDateSelection});
+
+                assignTheaterColors()
+                    .then(function(theaterColors) {
+                        loadTitleList(theaterColors);
+                    });
+                
+                document.getElementById("movie-finder-input").addEventListener("keyup", (e) => filterTitles());
+            });
+        </script>
+    </head>
+    <body style="overflow-y: hidden; padding: 1rem;">
+        <div style="display: flex;">
+            <div style="flex: 50%" class="flexcolumn">
+                <input class="mytextbox" id="movie-finder-input" type="text" placeholder="Enter movie title..." style="max-width: 1000px; max-height: 10vh;" />
+                <div class="panel-list">
+                    <ul id="movie-finder-titles" ></ul>
+                </div>
+            </div>
+            <div style="flex: 50%" class="flexcolumn">
+                <div style="padding-left: 10%; padding-right: 10%;">
+                    <h2 id="movie-finder-showtimes-header" style="text-align: center"></h2>
+                    <input class="mytextbox" id="date-range-picker" type="text" style="max-width: 25%; display: none; " />
+                    <div class="panel-list">
+                        <ul id="movie-finder-showtimes"></ul>
+                    </div>
+            </div>
+        </div>
+    </body>
+</html>

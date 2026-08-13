@@ -151,10 +151,11 @@ class connection():
         cur.execute(query, sql_params)
         return cur
 
-    def select(self, table, columns=None, where=None, *, group_by=None, order_by=None):
+    def select(self, table, columns=None, where=None, *, group_by=None, order_by=None, distinct=False):
         columns = ", ".join(columns or []) or "*"
+        distinct_part = "DISTINCT " if distinct else ""
 
-        query_parts = [f"SELECT {columns}", f"FROM {table}"]
+        query_parts = [f"SELECT {distinct_part}{columns}", f"FROM {table}"]
 
         where_constraint, where_params = _build_where_constraint(where)
         if where_constraint:
