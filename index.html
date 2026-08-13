@@ -856,45 +856,43 @@
                 var startDisplayStr = timeStr(showtime.start);
                 var endDisplayStr = showtime.end === null ? "???" : timeStr(showtime.end);
 
-                var titleEl = document.createElement("h2");
-                titleEl.innerHTML = showtimeDetails["title"];
+                var titleEl = Object.assign(document.createElement("h2"), {innerText: showtimeDetails["title"]});
                 titleEl.style.margin = "0px 0px 5px 0px";
 
-                var timeEl = document.createElement("div");
-                timeEl.innerHTML = `<i>${startDisplayStr} - ${endDisplayStr}</i>`;
+                var timeEl = Object.assign(document.createElement("div"), {innerHTML: `<i>${startDisplayStr} - ${endDisplayStr}</i>`});
+                var screenEl = Object.assign(document.createElement("div"), {innerHTML: `<i>Screen ${showtimeDetails["screen"]}</i>`});
+                var theaterEl = Object.assign(document.createElement("div"), {innerHTML: `<i>${showtimeDetails["theater"]}</i>`});
 
-                var screenEl = document.createElement("div");
-                screenEl.innerHTML = `<i>Screen ${showtimeDetails["screen"]}</i>`
-
-                var theaterEl = document.createElement("div");
-                theaterEl.innerHTML = `<i>${showtimeDetails["theater"]}</i>`;
-
-                var rawFormatStr = showtimeDetails["format"];
-                var formatStr = `<p>${rawFormatStr}</p>`;
-
-                var rawLanguageStr = showtimeDetails["language"];
-                var languageStr = rawLanguageStr === "UNKNOWN" ? "" : `<p>Language: ${rawLanguageStr}</p>`;
-
-                var programsStr = "";
-                var programs = showtimeDetails["programs"];
-                if (programs?.length) {
-                    programsStr = `<p>Programs: ${programs.join(", ")}</p>`;
-                }
-                
-                var mismatchedStr = "";
-                var mismatched = showtimeDetails["mismatched_fields"];
-                if (mismatched?.length > 0) {
-                    var theater = showtimeDetails["theater"];
-                    var id = showtimeDetails["id"];
-                    mismatchedStr = `<div style="margin-top: 16px; font-weight: bold;">
-                        \u{26A0}\u{FE0F}
-                        <span style="font-weight: bold;">Showtime out of sync.</span>
-                        <button onclick="syncScheduleAndReload('${theater}', '${id}');">Fix</button>
-                    </div>`;
-                }
 
                 var detailsEl = document.createElement("div");
-                detailsEl.innerHTML = formatStr + languageStr + programsStr + mismatchedStr;
+
+                var formatEl = Object.assign(document.createElement("p"), {innerText: showtimeDetails["format"]});
+                detailsEl.appendChild(formatEl);
+
+                var rawLanguageStr = showtimeDetails["language"];
+                if (rawLanguageStr !== "UNKNOWN") {
+                    var languageEl = Object.assign(document.createElement("p"), {innerText: `Language: ${rawLanguageStr}`});
+                    detailsEl.appendChild(languageEl);
+                }
+
+                var programs = showtimeDetails["programs"];
+                if (programs?.length) {
+                    var programsEl = Object.assign(document.createElement("p"), {innerText: `Programs: ${programs.join(", ")}`});
+                    detailsEl.appendChild(programsEl);
+                }
+
+                if (showtimeDetails["mismatched_fields"]?.length > 0) {
+                    var msgEl = Object.assign(document.createElement("span"), {innerText: "Showtime out of sync."});
+                    msgEl.style.fontWeight = "bold";
+                    var fixBtn = Object.assign(document.createElement("button", {innerText: "Fix"}));
+                    fixBtn.addEventListener("click", function() {
+                        syncScheduleAndReload(showtimeDetails["theater"], showtimeDetails["id"]);
+                    });
+                    var mismatchedEl = Object.assign(document.createElement("div"), {innerText: "\u{26A0}\u{FE0F}"});
+                    Object.assign(mismatchedStr.style, {marginTop: "16px", fontWeight: "bold"});
+
+                    detailsEl.appendChild(mismatchedEl);
+                }
 
                 var headerEl = document.createElement("div");
                 Object.assign(headerEl.style, {float: "left", maxWidth: "90%", paddingBottom: "5px"});
