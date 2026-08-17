@@ -33,7 +33,7 @@ def _cast_value(value):
 
 
 def _build_where_constraint(where_kwargs={}):
-    SUPPORTED_OPS = ("=", "!=", "<", ">", "<=", ">=", "in", "like")
+    SUPPORTED_OPS = ("=", "!=", "<", ">", "<=", ">=", "in", "like", "between")
 
     where_kwargs = where_kwargs or {}
 
@@ -52,7 +52,19 @@ def _build_where_constraint(where_kwargs={}):
             if not value or not any(value):
                 continue
 
-            if op == "in":
+            if op == "between":
+                if len(value) != 2:
+                    raise ValueError("Expected exactly two operands for BETWEEN.")
+
+                if not any(value):
+                    continue
+                elif all(value):
+                    right_operand = f"{_PH} AND {_PH}"
+                else:
+                    right_operand = _PH
+                    op = ">=" if value[0] else "<="
+                    value = [v for v in value if v]
+            elif op == "in":
                 right_operand_placeholders = ", ".join([_PH] * len(value))
                 right_operand = f"({right_operand_placeholders})"
             else:

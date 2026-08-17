@@ -57,23 +57,21 @@ def _read_schedule_query(raw_rows, *, clean=True):
 
 
 def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=True):
-    where = {"theater": theater, "title": title, "start_time": [(">=", first_time), ("<=", last_time)]}
+    where = {"theater": theater, "title": title, "start_time": [("between", first_time, last_time)]}
     with orm.connection() as conn:
         raw_result = conn.select("showtimes", where=where, order_by="title")
     return _read_showtimes_query(raw_result, clean=clean)
 
 
 def load_showtimes_by_create_time(first_create_time, last_create_time=None, *, order_by=None, clean=True):
-    create_time_filter = [(">=", first_create_time)] + ([("<=", last_create_time)] if last_create_time else [])
-    where = {"create_time": create_time_filter}
+    where = {"create_time": [("between", first_create_time, last_create_time)]}
     with orm.connection() as conn:
         raw_result = conn.select("showtimes", where=where, order_by=order_by)
     return _read_showtimes_query(raw_result, clean=clean)
 
 
 def load_deleted_showtimes_by_delete_time(first_delete_time, last_delete_time=None, *, order_by=None, clean=True):
-    delete_time_filter = [(">=", first_delete_time)] + ([("<=", last_delete_time)] if last_delete_time else [])
-    where = {"delete_time": delete_time_filter}
+    where = {"delete_time": [("between", first_delete_time, last_delete_time)]}
     with orm.connection() as conn:
         raw_result = conn.select("deleted_showtimes", where=where, order_by=order_by)
     return _read_deleted_showtimes_query(raw_result, clean=clean)
@@ -136,7 +134,7 @@ def store_showtimes(schedule, *, clean=True):
         return [], []
 
     with orm.connection() as conn:
-        where = {"theater": schedule.theater, "start_time": [(">=", schedule.start), ("<=", schedule.end + timedelta(days=1))]}
+        where = {"theater": schedule.theater, "start_time": [("between", schedule.start, schedule.end + timedelta(days=1))]}
         current_showtimes_by_id = {s["id"]: s for s in _read_showtimes_query(conn.select("showtimes", where=where))}
 
         now = datetime.now(timezone.utc).replace(microsecond=0)
@@ -202,7 +200,7 @@ def show_movie(title, *, client_id):
 
 
 def load_schedule(first_time, last_time, *, client_id):
-    where = {"client": client_id, "start_time": [(">=", first_time), ("<=", last_time)]}
+    where = {"client": client_id, "start_time": [("between", first_time, last_time)]}
     with orm.connection() as conn:
         raw_result = conn.select("schedule", where=where, order_by="start_time")
     return _read_schedule_query(raw_result)
@@ -241,7 +239,7 @@ def remove_from_schedule(showtime, *, client_id):
 
 
 def clear_schedule(first_time, last_time, *, client_id):
-    where = {"client": client_id, "start_time": [(">=", first_time), ("<=", last_time)]}
+    where = {"client": client_id, "start_time": [("between", first_time, last_time)]}
     with orm.connection() as conn:
         conn.delete("schedule", where)
 
