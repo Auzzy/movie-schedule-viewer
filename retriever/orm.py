@@ -19,21 +19,6 @@ def init():
         _DATETIME = ""
 
 
-def connect():
-    database_url = os.getenv('DATABASE_URL')
-    if database_url:
-        return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
-    else:
-        db = sqlite3.connect("showtimes.db")
-        db.row_factory = sqlite3.Row
-        return db
-
-
-def disconnect(db):
-    db.commit()
-    db.close()
-
-
 def _cast_value(value):
     if isinstance(value, bool):
         return int(value)
@@ -59,15 +44,12 @@ def _build_where_constraint(where_kwargs={}):
             constraints = [("=", constraints)]
 
         for constraint in constraints:
-            try:
-                op, value = constraint
-            except Exception:
-                op, value = "=", constraint
+            op, *value = constraint
 
             if op.lower() not in SUPPORTED_OPS:
                 raise ValueError(f"Invalid operator ({op}) found in constraint: {constraint}")
 
-            if value is None:
+            if not value or not any(value):
                 continue
 
             if op == "in":
@@ -76,17 +58,10 @@ def _build_where_constraint(where_kwargs={}):
             else:
                 right_operand = _PH
 
-            if isinstance(value, (date, time, datetime)):
-                column_cast = _DATETIME
-                value = value.isoformat()
-            else:
-                column_cast = ""
+            column_cast = _DATETIME if isinstance(value, (date, time, datetime)) else ""
+            where_parts.append(f"{column}{column_cast} {op.upper()} {right_operand}")
 
-            where_parts.append(f"{column}{column_cast} {op} {right_operand}")
-            if isinstance(value, (list, tuple, set, KeysView, ValuesView)):
-                where_params.extend(value)
-            else:
-                where_params.append(value)
+            where_params.extend(value)
 
     return " AND ".join(where_parts), tuple(where_params)
 
@@ -138,11 +113,17 @@ class connection():
         self.db = None
 
     def __enter__(self):
-        self.db = connect()
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            self.db = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+        else:
+            self.db = sqlite3.connect("showtimes.db")
+            self.db.row_factory = sqlite3.Row
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        disconnect(self.db)
+        self.db.commit()
+        self.db.close()
 
     def _execute(self, query, params):
         if isinstance(query, list):
