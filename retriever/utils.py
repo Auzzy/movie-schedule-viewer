@@ -41,6 +41,15 @@ def group_dict_by(items, key):
 def group_obj_by(items, attr):
     return group_by(items, lambda item: getattr(item, attr))
 
+def flatten(seq):
+    final = []
+    for item in seq:
+        if hasattr(item, "__iter__") and not isinstance(item, str):
+            final.extend(flatten(item))
+        else:
+            final.append(item)
+    return final
+
 def date_ranges(date_list):
     sorted_date_list = sorted(date_list)
 

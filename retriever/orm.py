@@ -1,3 +1,4 @@
+import itertools
 import json
 import os
 import sqlite3
@@ -6,6 +7,8 @@ from datetime import date, datetime, time, timezone
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+from retriever.utils import flatten
 
 
 def init():
@@ -45,6 +48,7 @@ def _build_where_constraint(where_kwargs={}):
 
         for constraint in constraints:
             op, *value = constraint
+            value = flatten(value)
 
             if op.lower() not in SUPPORTED_OPS:
                 raise ValueError(f"Invalid operator ({op}) found in constraint: {constraint}")
@@ -73,7 +77,7 @@ def _build_where_constraint(where_kwargs={}):
             column_cast = _DATETIME if isinstance(value, (date, time, datetime)) else ""
             where_parts.append(f"{column}{column_cast} {op.upper()} {right_operand}")
 
-            where_params.extend(value)
+            where_params.extend(flatten(value))
 
     return " AND ".join(where_parts), tuple(where_params)
 
