@@ -7,7 +7,7 @@ from ical.calendar_stream import IcsCalendarStream
 from ical.event import Event
 from mailtrap import Address, Attachment, Mail, MailtrapClient
 
-from retriever import db
+from retriever import orm
 from retriever.movie_times_lib import collect_schedule, \
         email_theater_schedules, send_deletion_report, send_watchlist_notification
 from retriever.schedule import Filter, FullSchedule, ParseError, \
@@ -31,7 +31,7 @@ def db_main(theater, date_range, deletion_report=True, watchlist_notifications=T
     if not schedule:
         return
 
-    _, deleted_showings = db.store_showtimes(schedule)
+    _, deleted_showings = orm.store_showtimes(schedule)
     if deletion_report and deleted_showings:
         send_deletion_report()
 

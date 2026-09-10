@@ -16,7 +16,7 @@ from ical.calendar_stream import IcsCalendarStream
 from ical.event import Event
 from pydantic import BaseModel
 
-from retriever import db
+from retriever import orm
 from retriever.movie_times_lib import collect_schedule, \
         gather_fandango_screens_by_theater, gather_fandango_screens_new_showtimes, \
         send_error_email, send_deletion_report, send_watchlist_notification
@@ -73,7 +73,7 @@ def _showtimes_to_ics(showtimes):
 
 def _load_visibility(theater, first_time, last_time, *, client_id):
     showtimes = _load_theater_showtimes(theater, first_time, last_time)
-    visibility = db.load_visibility(client_id=client_id) if client_id else {}
+    visibility = orm.load_visibility(client_id=client_id) if client_id else {}
 
     titles = {s["title"] for s in showtimes}
     return {title: visibility.get(title, True) for title in titles}
@@ -81,7 +81,7 @@ def _load_visibility(theater, first_time, last_time, *, client_id):
 
 def _load_theater_showtimes(theater, first_time, last_time, title=None):
     last_time = last_time or first_time
-    return db.load_showtimes(first_time, last_time, theater, title)
+    return orm.load_showtimes(first_time, last_time, theater, title)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -113,14 +113,14 @@ def request_visibility(theater: str, first_time: datetime, last_time: datetime, 
 def request_hide_movie(title, client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.hide_movie(title, client_id=client_id)
+    orm.hide_movie(title, client_id=client_id)
     return {}
 
 @app.put("/movies/{title:path}/show")
 def request_show_movie(title, client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.show_movie(title, client_id=client_id)
+    orm.show_movie(title, client_id=client_id)
     return {}
 
 @app.post("/export-ics")
@@ -134,7 +134,7 @@ def request_export_ics(payload: dict[str, Any], client_id: Annotated[str | None,
 def load_schedule(first_time: datetime, last_time: datetime, client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    schedule = db.load_schedule(first_time, last_time, client_id=client_id)
+    schedule = orm.load_schedule(first_time, last_time, client_id=client_id)
     return {
         "schedule": schedule
     }
@@ -143,21 +143,21 @@ def load_schedule(first_time: datetime, last_time: datetime, client_id: Annotate
 def clear_schedule(first_time: datetime, last_time: datetime, client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    schedule = db.clear_schedule(first_time, last_time, client_id=client_id)
+    schedule = orm.clear_schedule(first_time, last_time, client_id=client_id)
     return {}
 
 @app.post("/schedule/new-showtime")
 def add_showtime_to_schedule(showtime: dict[str, Any], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.add_to_schedule(showtime, client_id=client_id)
+    orm.add_to_schedule(showtime, client_id=client_id)
     return {}
 
 @app.post("/schedule/remove-showtime")
 def remove_showtime_from_schedule(showtime: dict[str, Any], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.remove_from_schedule(showtime, client_id=client_id)
+    orm.remove_from_schedule(showtime, client_id=client_id)
     return {}
 
 @app.post("/schedule/sync/{theater}/{showtime_id}")
@@ -165,21 +165,21 @@ def sync_showtime_to_schedule(theater: str, showtime_id: str, client_id: Annotat
     _check_write_permission(client_id)
 
     return {
-        "showtime": db.sync_showtime_to_schedule(showtime_id, theater, client_id=client_id)
+        "showtime": orm.sync_showtime_to_schedule(showtime_id, theater, client_id=client_id)
     }
 
 @app.get("/theaters")
 def request_theaters():
-    theaters = db.get_theaters(is_open=True)
+    theaters = orm.get_theaters(is_open=True)
     return {"names": [info["name"] for info in theaters]}
 
 @app.get("/theaters/last-updated")
 def request_theaters_last_updated():
-    theaters_last_update = db.theaters_last_update()
+    theaters_last_update = orm.theaters_last_update()
     updates_in_local_tz = {}
     for theater, last_update_utc_str in theaters_last_update.items():
         last_update_utc = datetime.fromisoformat(last_update_utc_str)
-        theater_info = db.get_theater(theater)
+        theater_info = orm.get_theater(theater)
         if not theater_info:
             print(f"[ERROR] There should not be showtimes in the DB for theaters that are not also in the DB.")
             continue
@@ -194,21 +194,21 @@ def request_watchlist(client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
     return {
-        "watchlist": [entry["title"] for entry in db.load_watchlist(client_id)]
+        "watchlist": [entry["title"] for entry in orm.load_watchlist(client_id)]
     }
 
 @app.post("/watchlist/add")
 def add_to_watchlist(title: Annotated[str, Body(embed=True)], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.add_to_watchlist(title, client_id=client_id)
+    orm.add_to_watchlist(title, client_id=client_id)
     return {}
 
 @app.post("/watchlist/remove")
 def remove_from_watchlist(title: Annotated[str, Body(embed=True)], client_id: Annotated[str | None, Cookie()] = None):
     _check_write_permission(client_id)
 
-    db.remove_from_watchlist(title, client_id=client_id)
+    orm.remove_from_watchlist(title, client_id=client_id)
     return {}
 
 @app.get("/update-showtimes")
@@ -220,14 +220,14 @@ def scan():
         days_to_scan = get_days_to_scan()
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
         for theater in theaters_to_scan:
-            tz = offset_timezone(db.get_theater(theater)["tzname"])
+            tz = offset_timezone(orm.get_theater(theater)["tzname"])
             today = datetime.now(tz).date()
             date_range = (today, today + timedelta(days=days_to_scan))
 
             print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
             schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
             if schedule:
-                db.store_showtimes(schedule)
+                orm.store_showtimes(schedule)
 
         gather_fandango_screens_new_showtimes(start_time)
 
@@ -238,7 +238,7 @@ def scan():
         success = False
     finally:
         end_time = datetime.now(timezone.utc)
-        db.log_task(db.Task.UPDATE_SHOWTIMES, start_time, end_time, success)
+        orm.log_task(orm.Task.UPDATE_SHOWTIMES, start_time, end_time, success)
 
 @app.get("/send-deletion-report")
 def scan_deletions():
@@ -247,7 +247,7 @@ def scan_deletions():
     success = send_deletion_report()
 
     end_time = datetime.now(timezone.utc)
-    db.log_task(db.Task.DELETION_REPORT, start_time, end_time, success)
+    orm.log_task(orm.Task.DELETION_REPORT, start_time, end_time, success)
 
 @app.get("/send-watchlist-notifications")
 def send_watchlist_notifications():
@@ -256,7 +256,7 @@ def send_watchlist_notifications():
     success = send_watchlist_notification()
 
     end_time = datetime.now(timezone.utc)
-    db.log_task(db.Task.WATCHLIST_NOTIFICATIONS, start_time, end_time, success)
+    orm.log_task(orm.Task.WATCHLIST_NOTIFICATIONS, start_time, end_time, success)
 
 @app.get("/gather-fandango-auditoriums/{theater}")
 def run_gather_fandango_screens(theater: str):
@@ -267,7 +267,7 @@ def run_gather_fandango_screens(theater: str):
     success = gather_fandango_screens_by_theater(theater)
 
     end_time = datetime.now(timezone.utc)
-    db.log_task(db.Task.GATHER_FANDANGO_SCREENS, start_time, end_time, success)
+    orm.log_task(orm.Task.GATHER_FANDANGO_SCREENS, start_time, end_time, success)
 
     print(f"Completed gather {theater} auditoriums at {end_time} UTC")
 
@@ -277,6 +277,6 @@ def run_gather_fandango_screens(theater: str):
 def schedule_rss(client_id: Annotated[str | None, Cookie()] = None, path_client_id: str | None = None):
     client_id = path_client_id or client_id
 
-    schedule = db.load_whole_schedule(client_id=client_id)
+    schedule = orm.load_whole_schedule(client_id=client_id)
     ics_stream = _showtimes_to_ics(schedule)
     return Response(content=ics_stream, media_type="text/calendar")

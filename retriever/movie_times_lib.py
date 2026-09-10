@@ -12,7 +12,7 @@ from ical.calendar_stream import IcsCalendarStream
 from ical.event import Event
 from mailtrap import Address, Attachment, Mail, MailtrapClient
 
-from retriever import db
+from retriever import orm
 from retriever.parsers import brattle, coolidge, fandango_json, red_river, somerville_theater
 from retriever.schedule import Filter, FullSchedule, ParseError
 from retriever.utils import JsonEncoder, date_ranges, date_range_to_str, \
@@ -92,7 +92,7 @@ def email_theater_schedules(schedules, dates, sender, sender_name, receiver):
 
 
 def collect_schedule(theater, filepath, date_range, filter_params, quiet):
-    theater_info = db.get_theater(theater)
+    theater_info = orm.get_theater(theater)
     if not theater_info:
         print(f"[ERROR] No theater found with the name {theater}. Has it been added?")
         return
@@ -114,16 +114,16 @@ def collect_schedule(theater, filepath, date_range, filter_params, quiet):
 def send_watchlist_notification():
     last_time = datetime.now()
 
-    first_time = db.last_successful_task_run(db.Task.WATCHLIST_NOTIFICATIONS) or (last_time - timedelta(days=365))
+    first_time = orm.last_successful_task_run(orm.Task.WATCHLIST_NOTIFICATIONS) or (last_time - timedelta(days=365))
 
-    stored_showings = db.load_showtimes_by_create_time(first_time, last_time)
+    stored_showings = orm.load_showtimes_by_create_time(first_time, last_time)
 
     showdates_by_title = defaultdict(lambda: defaultdict(set))
     for showing in stored_showings:
         showdate = showing["start_time"].date()
         showdates_by_title[showing["title"]][showing["theater"]].add(showdate)
 
-    watched = db.load_all_watchlists()
+    watched = orm.load_all_watchlists()
     for client_id, entries in group_dict_by(watched, "client").items():
         lines = []
         for entry in entries:
@@ -165,14 +165,14 @@ def send_deletion_report():
         return start, end
 
     last_time = datetime.now()
-    first_time = db.last_successful_task_run(db.Task.DELETION_REPORT) or (last_time - timedelta(days=365))
+    first_time = orm.last_successful_task_run(orm.Task.DELETION_REPORT) or (last_time - timedelta(days=365))
 
-    all_deleted_showtimes = db.load_deleted_showtimes_by_delete_time(first_time, last_time, order_by="title")
+    all_deleted_showtimes = orm.load_deleted_showtimes_by_delete_time(first_time, last_time, order_by="title")
     deleted_showtimes_by_theater = group_dict_by(all_deleted_showtimes, "theater")
     filtered_deleted_showtimes = []
     for theater, deleted_showtimes in deleted_showtimes_by_theater.items():
         deleted_showtimes = [{**s, "programs": list(s.get("programs", set()))} for s in deleted_showtimes]
-        theater_showtimes = db.load_showtimes(*_start_range(deleted_showtimes), theater=theater)
+        theater_showtimes = orm.load_showtimes(*_start_range(deleted_showtimes), theater=theater)
         filtered_deleted_showtimes.extend(_true_deletion_filter(deleted_showtimes, theater_showtimes))
 
         if not filtered_deleted_showtimes:
@@ -212,7 +212,7 @@ def send_error_email(exc):
 
 def add_theater(name, *, tzname, parser, is_open=True, rank=None, fullname=None):
     fullname = fullname or name
-    db.add_theater(name=name, fullname=fullname, tzname=tzname, is_open=is_open, rank=rank, parser=parser, code=None, query=None)
+    orm.add_theater(name=name, fullname=fullname, tzname=tzname, is_open=is_open, rank=rank, parser=parser, code=None, query=None)
 
 
 def add_theater_from_search(query, *, name=None, rank=None):
@@ -221,7 +221,7 @@ def add_theater_from_search(query, *, name=None, rank=None):
     if len(search_result) == 1:
         result = search_result[0]
         tzname = fandango_json.get_tzname(result["code"])
-        db.add_theater(**result, name=name, rank=rank, tzname=tzname)
+        orm.add_theater(**result, name=name, rank=rank, tzname=tzname)
     elif len(search_result) < 1:
         print(f"[ERROR] No results found for \"{query}\".") 
     else:
@@ -232,13 +232,13 @@ def add_theater_from_search(query, *, name=None, rank=None):
 
 def _gather_fandango_screens(showtimes):
     hash_to_auditorium = fandango_json.gather_seat_info(showtimes)
-    db.update_screens(hash_to_auditorium)
+    orm.update_screens(hash_to_auditorium)
 
 
 def gather_fandango_screens_new_showtimes(first_create_time):
     last_create_time = datetime.now(timezone.utc)
 
-    showtimes = db.load_showtimes_by_create_time(first_create_time, last_create_time)
+    showtimes = orm.load_showtimes_by_create_time(first_create_time, last_create_time)
     _gather_fandango_screens(showtimes)
 
 
@@ -247,9 +247,9 @@ def gather_fandango_screens_by_theater(theater):
     first_time = datetime.now().replace(microsecond=0)
     last_time = first_time + timedelta(days=get_days_to_scan())
 
-    fandango_theaters = [theater["name"] for theater in db.get_theaters(clean=False) if theater["parser"] == "fandango_json"]
+    fandango_theaters = [theater["name"] for theater in orm.get_theaters(clean=False) if theater["parser"] == "fandango_json"]
     if theater not in fandango_theaters:
         raise ValueError(f"{theater} is not one of: {fandango_theaters.join(', ')}.")
 
-    showtimes = db.load_showtimes(first_time, last_time, theater)
+    showtimes = orm.load_showtimes(first_time, last_time, theater)
     _gather_fandango_screens(showtimes)

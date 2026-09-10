@@ -1,437 +1,221 @@
+import itertools
 import json
-from datetime import datetime, timedelta, timezone
-from enum import StrEnum
+import os
+import sqlite3
+from collections.abc import KeysView, ValuesView
+from datetime import date, datetime, time, timezone
 
-from retriever import orm
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-
-class Task(StrEnum):
-    UPDATE_SHOWTIMES = "update-showtimes"
-    DELETION_REPORT = "deletion-report"
-    WATCHLIST_NOTIFICATIONS = "watchlist-notifications"
-    GATHER_FANDANGO_SCREENS = "gather-fandango-screens"
+from retriever.utils import flatten
 
 
-
-def _base_read_showtimes(raw_rows, *, clean=True):
-    rows = []
-    for row_dict in raw_rows:
-        rows.append(row_dict | {
-            "programs": set(json.loads(row_dict["programs"] or "[]")),
-            "extra_properties": json.loads(row_dict["extra_properties"] or "{}"),
-            "start_time": datetime.fromisoformat(row_dict["start_time"]),
-            "end_time": datetime.fromisoformat(row_dict["end_time"])
-        })
-    return rows
+def init():
+    global _DATETIME, _PH
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        _PH = "%s"
+        _DATETIME = "::timestamptz"
+    else:
+        _PH = "?"
+        _DATETIME = ""
 
 
-def _read_showtimes_query(raw_rows, *, clean=True):
-    rows = []
-    for row_dict in _base_read_showtimes(raw_rows, clean=clean):
-        row_dict["create_time"] = datetime.fromisoformat(row_dict["create_time"])
-        if clean:
-            del row_dict["create_time"]
-
-        rows.append(row_dict)
-    return rows
-
-
-def _read_deleted_showtimes_query(raw_rows, *, clean=True):
-    rows = []
-    for row_dict in _base_read_showtimes(raw_rows, clean=clean):
-        row_dict["delete_time"] = datetime.fromisoformat(row_dict["delete_time"])
-        if clean:
-            del row_dict["delete_time"]
-
-        rows.append(row_dict)
-    return rows
+def _cast_value(value):
+    if isinstance(value, bool):
+        return int(value)
+    elif isinstance(value, (list, dict)):
+        return json.dumps(value)
+    elif isinstance(value, set):
+        return json.dumps(sorted(value))
+    elif isinstance(value, (datetime, date, time)):
+        return value.isoformat()
+    else:
+        return value
 
 
-def _read_schedule_query(raw_rows, *, clean=True):
-    rows = []
-    for row_dict in _base_read_showtimes(raw_rows, clean=clean):
-        rows.append(row_dict | {
-            "mismatched_fields": json.loads(row_dict["mismatched_fields"] or "[]")
-        })
-    return rows
+def _build_where_constraint(where_kwargs={}):
+    SUPPORTED_OPS = ("=", "!=", "<", ">", "<=", ">=", "in", "like", "between")
 
+    where_kwargs = where_kwargs or {}
 
-def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=True):
-    where = {"theater": theater, "title": title, "start_time": [("between", first_time, last_time)]}
-    with orm.connection() as conn:
-        raw_result = conn.select("showtimes", where=where, order_by="title")
-    return _read_showtimes_query(raw_result, clean=clean)
+    where_parts = []
+    where_params = []
+    for column, constraints in where_kwargs.items():
+        if not isinstance(constraints, (list, tuple, set)):
+            constraints = [("=", constraints)]
 
+        for constraint in constraints:
+            op, *value = constraint
+            value = flatten(value)
 
-def load_showtimes_by_create_time(first_create_time, last_create_time=None, *, order_by=None, clean=True):
-    where = {"create_time": [("between", first_create_time, last_create_time)]}
-    with orm.connection() as conn:
-        raw_result = conn.select("showtimes", where=where, order_by=order_by)
-    return _read_showtimes_query(raw_result, clean=clean)
+            if op.lower() not in SUPPORTED_OPS:
+                raise ValueError(f"Invalid operator ({op}) found in constraint: {constraint}")
 
-
-def load_deleted_showtimes_by_delete_time(first_delete_time, last_delete_time=None, *, order_by=None, clean=True):
-    where = {"delete_time": [("between", first_delete_time, last_delete_time)]}
-    with orm.connection() as conn:
-        raw_result = conn.select("deleted_showtimes", where=where, order_by=order_by)
-    return _read_deleted_showtimes_query(raw_result, clean=clean)
-
-
-def _update_schedule(new_showtimes):
-    def pop_special_fields(showtime):
-        fields = ("format", "start_time")
-        return {field: showtime.pop(field, None) for field in fields}
-
-    if new_showtimes:
-        new_showtime_dict = {showtime["id"]: showtime for showtime in new_showtimes}
-        with orm.connection() as conn:
-            raw_result = conn.select("schedule", where={"id": [("in", list(new_showtime_dict.keys()))]})
-            schedule = _read_schedule_query(raw_result)
-
-            for showtime in schedule:
-                new_showtime = new_showtime_dict.get(showtime["id"])
-                if new_showtime:
-                    special_field_dict = pop_special_fields(showtime)
-                    new_special_field_dict = pop_special_fields(new_showtime)
-                    mismatched_fields = [field for field, value in special_field_dict.items() if new_special_field_dict[field] != value]
-                    new_showtime["mismatched_fields"] = mismatched_fields
-
-                    if showtime.get("screen") and not new_showtime.get("screen"):
-                        new_showtime["screen"] = showtime["screen"]
-
-                    if showtime != new_showtime:
-                        conn.update("schedule", new_showtime, {"id": showtime["id"]})
-
-
-def _schedule_to_dict(schedule):
-    new_showtimes = []
-    for movie in schedule.movies:
-        for showing in movie.showings:
-            if not showing.id:
+            if not value or not any(value):
                 continue
 
-            new_showtimes.append({
-                "id": showing.id,
-                "theater": schedule.theater,
-                "title": movie.name,
-                "format": showing.fmt,
-                "language": showing.language,
-                "start_time": showing.start,
-                "end_time": showing.end,
-                "programs": showing.programs,
-                "screen": showing.screen,
-                "extra_properties": showing.extra_properties
-            })
-    return new_showtimes
+            if op == "between":
+                if len(value) != 2:
+                    raise ValueError("Expected exactly two operands for BETWEEN.")
+
+                if not any(value):
+                    continue
+                elif all(value):
+                    right_operand = f"{_PH} AND {_PH}"
+                else:
+                    right_operand = _PH
+                    op = ">=" if value[0] else "<="
+                    value = [v for v in value if v]
+            elif op == "in":
+                right_operand_placeholders = ", ".join([_PH] * len(value))
+                right_operand = f"({right_operand_placeholders})"
+            else:
+                right_operand = _PH
+
+            column_cast = _DATETIME if isinstance(value, (date, time, datetime)) else ""
+            where_parts.append(f"{column}{column_cast} {op.upper()} {right_operand}")
+
+            where_params.extend(flatten(value))
+
+    return " AND ".join(where_parts), tuple(where_params)
 
 
-def store_showtimes(schedule, *, clean=True):
-    new_showtimes = _schedule_to_dict(schedule)
+def _build_conflict_clause(conflict):
+    conflict_parts = []
+    conflict_params = []
+    if conflict:
+        if len(conflict) > 1:
+            raise ValueError("Cannot interpret conflict with more than one entry.")
 
-    if not new_showtimes:
-        # Maybe sub in the hash? But I'd need to solve the duplication that would occur if the ID disappears after being entered in the DB...
-        print("The list of new showtimes was empty. This is likely due to the showtimes found lacking IDs.")
-        return [], []
+        conflict_columns = list(conflict.keys())[0]
+        conflict_action = conflict[conflict_columns]
 
-    with orm.connection() as conn:
-        where = {"theater": schedule.theater, "start_time": [("between", schedule.start, schedule.end + timedelta(days=1))]}
-        current_showtimes_by_id = {s["id"]: s for s in _read_showtimes_query(conn.select("showtimes", where=where))}
+        conflict_columns_str = ", ".join(conflict_columns)
+        conflict_parts.append(f"ON CONFLICT ({conflict_columns_str})")
+        if conflict_action:
+            conflict_update_str = ", ".join(f"{col} = {_PH}" for col in conflict_action)
+            conflict_params = list(conflict_action.values())
+            conflict_parts.append(f"DO UPDATE SET {conflict_update_str}")
+        else:
+            conflict_parts.append("DO NOTHING")
 
-        now = datetime.now(timezone.utc).replace(microsecond=0)
-        to_insert, to_delete = [], []
-        for new_showtime in new_showtimes:
-            current_showtime = current_showtimes_by_id.pop(new_showtime["id"], None)
-
-            # Fandango screens are added later. This ensures their omission
-            # during showtime retrieval isn't treated as a mismatch.
-            current_showtime_screen = current_showtime.get("screen") if current_showtime else None
-            if current_showtime_screen and not new_showtime.get("screen"):
-                new_showtime["screen"] = current_showtime_screen
-
-            if new_showtime != current_showtime:
-                to_insert.append(new_showtime)
-                if current_showtime:
-                    to_delete.append(current_showtime | {"delete_time": now})
-
-        if to_delete:
-            # Showtimes whose details have been changed; they'll be re-inserted with the correct details below.
-            conn.insert("deleted_showtimes", to_delete)
-            conn.delete("showtimes", {"theater": schedule.theater, "id": [("in", [s["id"] for s in to_delete])]})
-
-        if current_showtimes_by_id:
-            # Pre-existing showtimes that have disappeared i.e. their ID no longer shows up.
-            conn.insert("deleted_showtimes", [s | {"delete_time": now} for s in current_showtimes_by_id.values()])
-            conn.delete("showtimes", {"theater": schedule.theater, "id": [("in", current_showtimes_by_id.keys())]})
-
-        if to_insert:
-            # Either inserting new showtimes, or re-adding those whose details changed.
-            to_insert_with_timestamp = [showtime | {"create_time": now} for showtime in to_insert]
-            conn.insert("showtimes", to_insert_with_timestamp, conflict={("id", "theater"): None})
-
-    _update_schedule(to_insert)
-
-    showtimes = load_showtimes_by_create_time(now, order_by="title", clean=clean)
-    deleted_showtimes = load_deleted_showtimes_by_delete_time(now, order_by="title", clean=clean)
-    return showtimes, deleted_showtimes
+    return " ".join(conflict_parts), tuple(conflict_params)
 
 
-def update_screens(hash_to_auditorium):
-    with orm.connection() as conn:
-        for hash_code, auditorium in hash_to_auditorium.items():
-            conn.update("showtimes", {"screen": auditorium}, {"extra_properties": [("like", f"%{hash_code}%")]})
-            conn.update("schedule", {"screen": auditorium}, {"extra_properties": [("like", f"%{hash_code}%")]})
+def _build_insert_values(assignments):
+    if isinstance(assignments, dict):
+        assignments = [assignments]
+
+    raw_columns = {tuple(item.keys()) for item in assignments}
+    if len(raw_columns) != 1:
+        raise ValueError("Bulk insert is only allowed when all columns are the same.")
+
+    values_pieces = []
+    insert_params = []
+    for assignment in assignments:
+        placeholders_str = ", ".join([f"{_PH}"] * len(assignment))
+        values_pieces.append(f"({placeholders_str})")
+        insert_params.extend(assignment.values())
+
+    values_clause = f"VALUES {', '.join(values_pieces)}"
+    columns_str = ", ".join(list(raw_columns)[0])
+    return columns_str, values_clause, tuple(insert_params)
 
 
-def load_visibility(*, client_id):
-    where = {"client": client_id}
-    with orm.connection() as conn:
-        raw_result = conn.select("moviemetadata", columns=["title", "hidden"], where=where)
-    return {row["title"]: row["hidden"] == 0 for row in raw_result}
+class connection():
+    def __init__(self):
+        self.db = None
+
+    def __enter__(self):
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            self.db = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+        else:
+            self.db = sqlite3.connect("showtimes.db")
+            self.db.row_factory = sqlite3.Row
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.db.commit()
+        self.db.close()
+
+    def _execute(self, query, params):
+        if isinstance(query, list):
+            query = " ".join(query)
+        
+        sql_params = [_cast_value(p) for p in params]
+
+        cur = self.db.cursor()
+        cur.execute(query, sql_params)
+        return cur
+
+    def select(self, table, columns=None, where=None, *, group_by=None, order_by=None):
+        columns = ", ".join(columns or []) or "*"
+
+        query_parts = [f"SELECT {columns}", f"FROM {table}"]
+
+        where_constraint, where_params = _build_where_constraint(where)
+        if where_constraint:
+            query_parts.append(f"WHERE {where_constraint}")
+
+        if group_by:
+            query_parts.append(f"GROUP BY {group_by}")
+
+        if order_by:
+            try:
+                field, direction = order_by
+                direction = "" if direction.lower() not in ("asc", "desc") else direction
+            except:
+                field, direction = order_by, "asc"
+            query_parts.append(f"ORDER BY {field} {direction}")
+
+        cur = self._execute(query_parts, where_params)
+
+        return [dict(row) for row in cur.fetchall()]
     
 
-def hide_movie(title, *, client_id):
-    with orm.connection() as conn:
-        conn.insert("moviemetadata", {"title": title, "hidden": 1, "client": client_id}, conflict={("title", "client"): {"hidden": 1}})
+    def selectone(self, table, columns=None, where=None, *, group_by=None, order_by=None):
+        results = self.select(table, columns, where, group_by=group_by, order_by=order_by)
+        return results[0] if results else {}
 
 
-def show_movie(title, *, client_id):
-    with orm.connection() as conn:
-        conn.update("moviemetadata", {"hidden": 0}, {"title": title, "client": client_id})
+    def update(self, table, assign, where=None):
+        if not assign:
+            raise ValueError("Request to insert was empty.")
+
+        query_parts = [f"UPDATE {table}"]
+
+        assignment_statements = ", ".join([f"{col} = {_PH}" for col in assign])
+        if assignment_statements:
+            query_parts.append(f"SET {assignment_statements}")
+
+        where_constraint, where_params = _build_where_constraint(where)
+        if where_constraint:
+            query_parts.append(f"WHERE {where_constraint}")
+        
+        self._execute(query_parts, tuple(assign.values()) + where_params)
+
+    def insert(self, table, assignments, *, conflict=None):
+        if not assignments:
+            raise ValueError("Request to insert was empty.")
+
+        columns_str, values_clause, insert_params = _build_insert_values(assignments)
+        query_parts = [f"INSERT INTO {table}({columns_str})", values_clause]
+
+        conflict_clause, conflict_params = _build_conflict_clause(conflict)
+        if conflict_clause:
+            query_parts.append(conflict_clause)
+
+        self._execute(query_parts, insert_params + conflict_params)
 
 
-def load_schedule(first_time, last_time, *, client_id):
-    where = {"client": client_id, "start_time": [("between", first_time, last_time)]}
-    with orm.connection() as conn:
-        raw_result = conn.select("schedule", where=where, order_by="start_time")
-    return _read_schedule_query(raw_result)
+    def delete(self, table, where):
+        where_constraint, where_params = _build_where_constraint(where)
+        
+        query_parts = [f"DELETE FROM {table}", f"WHERE {where_constraint}"]
+        self._execute(query_parts, where_params)
 
 
-def load_whole_schedule(*, client_id):
-    where = {"client": client_id}
-    with orm.connection() as conn:
-        raw_result = conn.select("schedule", where=where, order_by="start_time")
-    return _read_schedule_query(raw_result, clean=False)
-
-
-def add_to_schedule(showtime, *, client_id):
-    entry = {
-        "id": showtime["id"],
-        "theater": showtime["theater"],
-        "title": showtime["title"],
-        "format": showtime["format"],
-        "screen": showtime["screen"],
-        "language": showtime["language"],
-        "programs": showtime["programs"],
-        "start_time": showtime["start_time"],
-        "end_time": showtime["end_time"],
-        "extra_properties": showtime["extra_properties"],
-        "create_time": datetime.now(timezone.utc).replace(microsecond=0),
-        "client": client_id
-    }
-
-    with orm.connection() as conn:
-        conn.insert("schedule", entry, conflict={("id", "theater", "client"): None})
-
-
-def remove_from_schedule(showtime, *, client_id):
-    with orm.connection() as conn:
-        conn.delete("schedule", where={"id": showtime["id"], "theater": showtime["theater"], "client": client_id})
-
-
-def clear_schedule(first_time, last_time, *, client_id):
-    where = {"client": client_id, "start_time": [("between", first_time, last_time)]}
-    with orm.connection() as conn:
-        conn.delete("schedule", where)
-
-
-def sync_showtime_to_schedule(showtime_id, theater, *, client_id):
-    base_where = {"id": showtime_id, "theater": theater}
-    with orm.connection() as conn:
-        showtime = conn.selectone("showtimes", where=base_where)
-        updated_showtime = showtime | {"mismatched_fields": None}
-        schedule_where = base_where | {"client": client_id}
-        conn.update("schedule", updated_showtime, where=schedule_where)
-
-    return updated_showtime
-
-
-def theaters_last_update():
-    columns = [
-        "theater",
-        "MAX(create_time) last_update_time"
-    ]
-    with orm.connection() as conn:
-        raw_result = conn.select("showtimes", columns, group_by="theater")
-    return {row["theater"]: row["last_update_time"] for row in raw_result}
-
-
-def add_theater(name, fullname, code, tzname, is_open, rank, parser, query):
-    code = code.lower() if code is not None else None
-
-    info = {
-        "name": name,
-        "fullname": fullname,
-        "code": code,
-        "tzname": tzname,
-        "isopen": int(bool(is_open)),
-        "rank": rank,
-        "parser": parser,
-        "query": query
-    }
-    with orm.connection() as conn:
-        conn.insert("theater", info)
-
-
-def get_theaters(*, is_open=None, clean=True):
-    where = {"isopen": int(bool(is_open))} if is_open is not None else {}
-    rows = []
-    with orm.connection() as conn:
-        raw_result = conn.select("theater", where=where, order_by="rank")
-
-    for row_dict in raw_result:
-        row_dict["is_open"] = row_dict["isopen"] == 1
-        if clean:
-            del row_dict["parser"]
-            
-        rows.append(row_dict)
-    return rows
-
-
-def get_theater(name):
-    with orm.connection() as conn:
-        row_dict = conn.selectone("theater", where={"name": name, "isopen": 1})
-
-    return {**row_dict, "is_open": row_dict["isopen"] == 1} if row_dict else {}
-
-
-def load_watchlist(client_id):
-    where = {"client": client_id}
-    with orm.connection() as conn:
-        return conn.select("watchlist", where=where, order_by="title")
-
-
-def load_all_watchlists():
-    with orm.connection() as conn:
-        return conn.select("watchlist", order_by="title")
-
-
-def add_to_watchlist(title, *, client_id):
-    entry = {"title": title, "client": client_id}
-    with orm.connection() as conn:
-        conn.insert("watchlist", entry, conflict={tuple(entry.keys()): None})
-
-
-def remove_from_watchlist(title, *, client_id):
-    with orm.connection() as conn:
-        conn.delete("watchlist", {"title": title, "client": client_id})
-
-
-def log_task(name, start_time, end_time, success):
-    if name not in list(Task):
-        raise ValueError(f"\"name\" must be one of: {list(Task)}")
-
-    info = {
-        "name":name,
-        "start_time": start_time,
-        "end_time": end_time,
-        "success": int(bool(success))
-    }
-    with orm.connection() as conn:
-        conn.insert("task_log", info)
-
-
-def last_successful_task_run(name):
-    with orm.connection() as conn:
-        raw_result = conn.selectone("task_log", ["max(start_time) last_run"], {"name": name, "success": 1})
-
-    last_run_str = raw_result.get("last_run")
-    return datetime.fromisoformat(last_run_str) if last_run_str else None
-
-
-def _init_db():
-    with orm.connection() as conn:
-        cur = conn.db.cursor()
-
-        cur.execute("""CREATE TABLE IF NOT EXISTS showtimes (
-            id TEXT,
-            theater TEXT NOT NULL,
-            title TEXT NOT NULL,
-            format TEXT NOT NULL,
-            screen TEXT,
-            language TEXT NOT NULL,
-            programs TEXT,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            extra_properties TEXT,
-            create_time TEXT NOT NULL,
-            PRIMARY KEY(id, theater)
-        )""")
-
-        # I could do this as a soft delete from showtimes. But this allows
-        # capturing any instance of them re-adding the exact same showtime.
-        cur.execute("""CREATE TABLE IF NOT EXISTS deleted_showtimes (
-            id TEXT,
-            autoid BIGSERIAL PRIMARY KEY,
-            theater TEXT NOT NULL,
-            title TEXT NOT NULL,
-            format TEXT NOT NULL,
-            screen TEXT,
-            language TEXT NOT NULL,
-            programs TEXT,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            extra_properties TEXT,
-            delete_time TEXT NOT NULL
-        )""")
-
-        cur.execute("""CREATE TABLE IF NOT EXISTS moviemetadata (
-            title TEXT NOT NULL,
-            hidden INTEGER DEFAULT 0,
-            client TEXT NOT NULL,
-            PRIMARY KEY(title, client)
-        )""")
-
-        cur.execute("""CREATE TABLE IF NOT EXISTS schedule (
-            id TEXT,
-            theater TEXT NOT NULL,
-            title TEXT NOT NULL,
-            format TEXT NOT NULL,
-            screen TEXT,
-            language TEXT NOT NULL,
-            programs TEXT,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            create_time TEXT NOT NULL,
-            extra_properties TEXT,
-            mismatched_fields TEXT,
-            client TEXT NOT NULL,
-            PRIMARY KEY(id, theater, client)
-        )""")
-
-        cur.execute("""CREATE TABLE IF NOT EXISTS theater (
-            name TEXT PRIMARY KEY,
-            fullname TEXT NOT NULL,
-            code TEXT,
-            tzname TEXT NOT NULL,
-            isopen INTEGER NOT NULL,
-            rank INTEGER,
-            parser TEXT NOT NULL,
-            query TEXT
-        )""")
-
-        cur.execute("""CREATE TABLE IF NOT EXISTS watchlist (
-            title TEXT NOT NULL,
-            client TEXT NOT NULL,
-            PRIMARY KEY(title, client)
-        )""")
-
-        cur.execute("""CREATE TABLE IF NOT EXISTS task_log (
-            name TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            success INT NOT NULL,
-            PRIMARY KEY(name, start_time)
-        )""")
-
-
-_init_db()
+init()
