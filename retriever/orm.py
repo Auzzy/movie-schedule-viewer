@@ -125,6 +125,14 @@ def _schedule_to_dict(schedule):
     return new_showtimes
 
 
+def _apply_runtime_override(new_showtime, runtime_overrides):
+    override = runtime_overrides.get(new_showtime["title"])
+    if override and (override["force"] or new_showtime["end_time"] == new_showtime["start_time"]):
+        return {**new_showtime, "end_time": new_showtime["start_time"] + timedelta(minutes=override["runtime"])}
+
+    return new_showtime
+
+
 def store_showtimes(schedule, *, clean=True):
     new_showtimes = _schedule_to_dict(schedule)
 
@@ -133,6 +141,8 @@ def store_showtimes(schedule, *, clean=True):
         print("The list of new showtimes was empty. This is likely due to the showtimes found lacking IDs.")
         return [], []
 
+    runtime_overrides = load_all_runtime_overrides()
+
     with db.connection() as conn:
         where = {"theater": schedule.theater, "start_time": [("between", schedule.start, schedule.end + timedelta(days=1))]}
         current_showtimes_by_id = {s["id"]: s for s in _read_showtimes_query(conn.select("showtimes", where=where))}
@@ -140,6 +150,8 @@ def store_showtimes(schedule, *, clean=True):
         now = datetime.now(timezone.utc).replace(microsecond=0)
         to_insert, to_delete = [], []
         for new_showtime in new_showtimes:
+            new_showtime = _apply_runtime_override(new_showtime, runtime_overrides)
+
             current_showtime = current_showtimes_by_id.pop(new_showtime["id"], None)
 
             # Fandango screens are added later. This ensures their omission
@@ -348,6 +360,19 @@ def last_successful_task_run(name):
     return datetime.fromisoformat(last_run_str) if last_run_str else None
 
 
+def load_all_runtime_overrides():
+    with db.connection() as conn:
+        raw_result = conn.select("runtime_override")
+
+    overrides = {}
+    for override in raw_result:
+        overrides[override["title"]] = {
+            "force": override["force"] == 1,
+            "runtime": int(override["runtime"])
+        }
+
+    return overrides
+
 def _init_db():
     with db.connection() as conn:
         cur = conn.db.cursor()
@@ -431,6 +456,12 @@ def _init_db():
             end_time TEXT NOT NULL,
             success INT NOT NULL,
             PRIMARY KEY(name, start_time)
+        )""")
+
+        cur.execute("""CREATE TABLE IF NOT EXISTS runtime_override (
+            title TEXT PRIMARY KEY,
+            runtime INT NOT NULL,
+            force INT NOT NULL DEFAULT 0
         )""")
 
 
