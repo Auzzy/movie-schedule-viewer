@@ -2,6 +2,7 @@ import requests
 from datetime import datetime
 
 from retriever.schedule import DaySchedule
+from retriever.utils import offset_timezone
 
 
 THEATER_NAME = "Red River"
@@ -64,10 +65,12 @@ def _get_programs(showing_json):
     return programs
 
 def _load_schedules(schedule_json, tzname):
+    tz = offset_timezone(tzname)
+
     films = {}
     schedules = {}
     for showing_json in schedule_json["data"]["showingsForDate"]["data"]:
-        start_dt = datetime.fromisoformat(showing_json["time"])
+        start_dt = datetime.fromisoformat(showing_json["time"]).astimezone(tz)
 
         showdate = start_dt.date()
         schedule = schedules[showdate] = schedules.get(showdate, DaySchedule(THEATER_NAME, showdate))
