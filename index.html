@@ -128,7 +128,11 @@
                 });
             }
 
-            function request(method, path, bodyJson) {
+            function request(method, path, bodyJson, params) {
+                if (params !== undefined) {
+                    path = `${path}?${new URLSearchParams(params)}`;
+                }
+
                 const url = `/${path}`;
                 return fetch(url, {method: method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(bodyJson)})
                     .then(function(response) {
@@ -148,8 +152,8 @@
                     });
             }
 
-            function get(path) {
-                return request("GET", path);
+            function get(path, params) {
+                return request("GET", path, undefined, params);
             }
 
             function post(path, bodyJson) {
@@ -222,7 +226,7 @@
             }
 
             function getTheaterNames() {
-                return get("theaters");
+                return get("theaters", {isopen: true});
             }
 
             async function refreshTheatersLastUpdated() {

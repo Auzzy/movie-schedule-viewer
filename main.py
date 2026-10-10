@@ -169,8 +169,8 @@ def sync_showtime_to_schedule(theater: str, showtime_id: str, client_id: Annotat
     }
 
 @app.get("/theaters")
-def request_theaters():
-    theaters = orm.get_theaters(is_open=True)
+def request_theaters(isopen: bool | None = None):
+    theaters = orm.get_theaters(is_open=isopen)
     return {"names": [info["name"] for info in theaters]}
 
 @app.get("/theaters/last-updated")

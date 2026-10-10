@@ -45,7 +45,11 @@
             ];
 
 
-            function request(method, path, bodyJson) {
+            function request(method, path, bodyJson, params) {
+                if (params !== undefined) {
+                    path = `${path}?${new URLSearchParams(params)}`;
+                }
+
                 const url = `/${path}`;
                 return fetch(url, {method: method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(bodyJson)})
                     .then(function(response) {
@@ -67,10 +71,7 @@
 
             // NOTE: The query parameter handling is new.
             function get(path, params) {
-                if (params !== undefined) {
-                    path = `${path}?${new URLSearchParams(params)}`;
-                }
-                return request("GET", path);
+                return request("GET", path, undefined, params);
             }
             /******************** END DUPLICATE SECTION *******************/
 

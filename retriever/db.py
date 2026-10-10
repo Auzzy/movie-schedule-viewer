@@ -53,7 +53,7 @@ def _build_where_constraint(where_kwargs={}):
             if op.lower() not in SUPPORTED_OPS:
                 raise ValueError(f"Invalid operator ({op}) found in constraint: {constraint}")
 
-            if not value or not any(value):
+            if value == [] or not any(v is not None for v in value):
                 continue
 
             if op == "between":
