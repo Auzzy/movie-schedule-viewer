@@ -219,13 +219,18 @@ def scan():
 
         days_to_scan = get_days_to_scan()
         theaters_to_scan = os.environ.get("MOVIE_VIEWER_THEATERS", "").split(",")
-        for theater in theaters_to_scan:
-            tz = offset_timezone(orm.get_theater(theater)["tzname"])
+        for theater_name in theaters_to_scan:
+            theater = orm.get_theater(theater_name, is_open=True)
+            if not theater:
+                print(f"Tried to scan closed theater: {theater_name}")
+                continue
+
+            tz = offset_timezone(theater["tzname"])
             today = datetime.now(tz).date()
             date_range = (today, today + timedelta(days=days_to_scan))
 
-            print(f"Updating the showtimes for {theater} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
-            schedule = collect_schedule(theater, None, date_range, Filter.empty(), True)
+            print(f"Updating the showtimes for {theater_name} between {date_range[0].isoformat()} and {date_range[1].isoformat()}...")
+            schedule = collect_schedule(theater_name, None, date_range, Filter.empty(), True)
             if schedule:
                 orm.store_showtimes(schedule)
 

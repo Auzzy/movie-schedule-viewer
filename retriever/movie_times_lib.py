@@ -92,7 +92,7 @@ def email_theater_schedules(schedules, dates, sender, sender_name, receiver):
 
 
 def collect_schedule(theater, filepath, date_range, filter_params, quiet):
-    theater_info = orm.get_theater(theater)
+    theater_info = orm.get_theater(theater, is_open=True)
     if not theater_info:
         print(f"[ERROR] No theater found with the name {theater}. Has it been added?")
         return

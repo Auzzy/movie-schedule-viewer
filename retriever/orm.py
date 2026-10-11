@@ -309,9 +309,10 @@ def get_theaters(*, is_open=None, clean=True):
     return rows
 
 
-def get_theater(name):
+def get_theater(name, *, is_open=None):
+    where = {"name": name} | ({"isopen": int(bool(is_open))} if is_open is not None else {})
     with db.connection() as conn:
-        row_dict = conn.selectone("theater", where={"name": name, "isopen": 1})
+        row_dict = conn.selectone("theater", where=where)
 
     return {**row_dict, "is_open": row_dict["isopen"] == 1} if row_dict else {}
 
