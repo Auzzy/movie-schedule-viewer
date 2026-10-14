@@ -126,6 +126,7 @@
                         dateRangePicker.setDate([firstDate, lastDate]);
 
                         Object.entries(showtimesByDay)
+                            .toSorted((entry1, entry2) => dayjs(entry1[0]).diff(dayjs(entry2[0])))
                             .forEach(([day, dayShowtimes]) => {
                                 var dayHeaderEl = Object.assign(document.createElement("h4"), {innerText: dayjs(day).format("MMM D, YYYY")});
                                 var dayShowtimesEl = document.createElement("div");
