@@ -129,6 +129,7 @@ def _program_adjustments(attributes, programs):
     _move(attributes, programs, "Double Feature")
     _move(attributes, programs, "New Release")
     _move(attributes, programs, "Outdoors")
+    _move(attributes, programs, "Flick r Treats")
 
     if "OnStage at the Coolidge" in programs:
         attributes.append("Live Performance")
