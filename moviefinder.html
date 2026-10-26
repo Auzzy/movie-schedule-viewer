@@ -96,7 +96,7 @@
             }
 
             function filterTitles() {
-                var query = document.getElementById("movie-finder-input").value;
+                var query = document.getElementById("movie-finder-input").value.toLowerCase();
                 var matchingTitlesEl = document.getElementById("movie-finder-titles");
                 Array.from(matchingTitlesEl.children).forEach((entryEl) => {
                     entryEl.style.display = entryEl.dataset.title.toLowerCase().includes(query) ? "" : "none";
