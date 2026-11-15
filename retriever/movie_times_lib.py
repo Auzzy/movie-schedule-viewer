@@ -112,9 +112,9 @@ def collect_schedule(theater, filepath, date_range, filter_params, quiet):
 
 @task
 def send_watchlist_notification():
-    last_time = datetime.now()
+    last_time = datetime.now(timezone.utc)
 
-    first_time = orm.last_successful_task_run(orm.Task.WATCHLIST_NOTIFICATIONS) or (last_time - timedelta(days=365))
+    first_time = orm.last_successful_task_run(orm.Task.WATCHLIST_NOTIFICATIONS).astimezone(timezone.utc) or (last_time - timedelta(days=365))
 
     stored_showings = orm.load_showtimes_by_create_time(first_time, last_time)
 
@@ -127,10 +127,11 @@ def send_watchlist_notification():
     for client_id, entries in group_dict_by(watched, "client").items():
         lines = []
         for entry in entries:
-            title = entry["title"]
-            showdates_by_theater = showdates_by_title.get(title, {})
-            if showdates_by_theater:
-                lines.append(f"Showings added for {title}:")
+            for full_title, showdates_by_theater in showdates_by_title.items():
+                if entry["title"] not in full_title:
+                    continue
+
+                lines.append(f"Showings added for {full_title}:")
                 for theater, showdates in showdates_by_theater.items():
                     showdate_ranges = date_ranges(showdates)
                     showdates_str = ", ".join(date_range_to_str(dr) for dr in showdate_ranges)
