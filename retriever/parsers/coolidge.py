@@ -158,12 +158,6 @@ def _parse_format(raw_attributes):
 def _load_schedule(page, day, tzname, open_captions_dict, signature_programs_dict):
     schedule = DaySchedule(THEATER_NAME, day)
     for movie_info in page.find_all(class_="film-card"):
-        part_of_package_el = movie_info.find(class_="view-part-of-package-title")
-        if part_of_package_el.get_text(strip=True):
-            # These are generally multi-week classes, meaning you buy them as a
-            # block, not individually. As such, they share an ID.
-            continue
-
         details = movie_info.find(class_="film-card__detail")
         name = details.find(class_="film-card__link").get_text(strip=True)
         runtime_el = details.find(class_="film-card__runtime")
