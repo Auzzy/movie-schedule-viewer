@@ -12,22 +12,32 @@ class Task(StrEnum):
     GATHER_FANDANGO_SCREENS = "gather-fandango-screens"
 
 
+def _apply_runtime_override(row_dict, runtime_overrides):
+    override = runtime_overrides.get(row_dict["title"])
+    if override and (override["force"] or row_dict["end_time"] == row_dict["start_time"]):
+        return {**row_dict, "end_time": row_dict["start_time"] + timedelta(minutes=override["runtime"])}
 
-def _base_read_showtimes(raw_rows, *, clean=True):
+    return row_dict
+
+
+def _base_read_showtimes(raw_rows, *, clean=True, runtime_overrides={}):
     rows = []
     for row_dict in raw_rows:
-        rows.append(row_dict | {
+        typed_row_dict = row_dict | {
             "programs": set(json.loads(row_dict["programs"] or "[]")),
             "extra_properties": json.loads(row_dict["extra_properties"] or "{}"),
             "start_time": datetime.fromisoformat(row_dict["start_time"]),
             "end_time": datetime.fromisoformat(row_dict["end_time"])
-        })
+        }
+        
+        rows.append(_apply_runtime_override(typed_row_dict, runtime_overrides))
+
     return rows
 
 
-def _read_showtimes_query(raw_rows, *, clean=True):
+def _read_showtimes_query(raw_rows, *, clean=True, runtime_overrides={}):
     rows = []
-    for row_dict in _base_read_showtimes(raw_rows, clean=clean):
+    for row_dict in _base_read_showtimes(raw_rows, clean=clean, runtime_overrides=runtime_overrides):
         row_dict["create_time"] = datetime.fromisoformat(row_dict["create_time"])
         if clean:
             del row_dict["create_time"]
@@ -36,9 +46,9 @@ def _read_showtimes_query(raw_rows, *, clean=True):
     return rows
 
 
-def _read_deleted_showtimes_query(raw_rows, *, clean=True):
+def _read_deleted_showtimes_query(raw_rows, *, clean=True, runtime_overrides={}):
     rows = []
-    for row_dict in _base_read_showtimes(raw_rows, clean=clean):
+    for row_dict in _base_read_showtimes(raw_rows, clean=clean, runtime_overrides=runtime_overrides):
         row_dict["delete_time"] = datetime.fromisoformat(row_dict["delete_time"])
         if clean:
             del row_dict["delete_time"]
@@ -47,9 +57,9 @@ def _read_deleted_showtimes_query(raw_rows, *, clean=True):
     return rows
 
 
-def _read_schedule_query(raw_rows, *, clean=True):
+def _read_schedule_query(raw_rows, *, clean=True, runtime_overrides={}):
     rows = []
-    for row_dict in _base_read_showtimes(raw_rows, clean=clean):
+    for row_dict in _base_read_showtimes(raw_rows, clean=clean, runtime_overrides=runtime_overrides):
         rows.append(row_dict | {
             "mismatched_fields": json.loads(row_dict["mismatched_fields"] or "[]")
         })
@@ -57,29 +67,35 @@ def _read_schedule_query(raw_rows, *, clean=True):
 
 
 def load_showtimes(first_time, last_time, theater=None, title=None, *, clean=True):
+    runtime_overrides = load_all_runtime_overrides()
+
     where = {"theater": theater, "title": title, "start_time": [("between", first_time, last_time)]}
     with db.connection() as conn:
         raw_result = conn.select("showtimes", where=where, order_by="title")
-    return _read_showtimes_query(raw_result, clean=clean)
+    return _read_showtimes_query(raw_result, clean=clean, runtime_overrides=runtime_overrides)
 
 
 def load_showtimes_by_create_time(first_create_time, last_create_time=None, *, order_by=None, clean=True):
+    runtime_overrides = load_all_runtime_overrides()
+
     where = {"create_time": [("between", first_create_time, last_create_time)]}
     with db.connection() as conn:
         raw_result = conn.select("showtimes", where=where, order_by=order_by)
-    return _read_showtimes_query(raw_result, clean=clean)
+    return _read_showtimes_query(raw_result, clean=clean, runtime_overrides=runtime_overrides)
 
 
 def load_deleted_showtimes_by_delete_time(first_delete_time, last_delete_time=None, *, order_by=None, clean=True):
+    runtime_overrides = load_all_runtime_overrides()
+
     where = {"delete_time": [("between", first_delete_time, last_delete_time)]}
     with db.connection() as conn:
         raw_result = conn.select("deleted_showtimes", where=where, order_by=order_by)
-    return _read_deleted_showtimes_query(raw_result, clean=clean)
+    return _read_deleted_showtimes_query(raw_result, clean=clean, runtime_overrides=runtime_overrides)
 
 
 def _update_schedule(new_showtimes):
     def pop_special_fields(showtime):
-        fields = ("format", "start_time")
+        fields = ("format", "start_time", "end_time")
         return {field: showtime.pop(field, None) for field in fields}
 
     if new_showtimes:
@@ -125,12 +141,6 @@ def _schedule_to_dict(schedule):
     return new_showtimes
 
 
-def _apply_runtime_override(new_showtime, runtime_overrides):
-    override = runtime_overrides.get(new_showtime["title"])
-    if override and (override["force"] or new_showtime["end_time"] == new_showtime["start_time"]):
-        return {**new_showtime, "end_time": new_showtime["start_time"] + timedelta(minutes=override["runtime"])}
-
-    return new_showtime
 
 
 def store_showtimes(schedule, *, clean=True):
@@ -141,17 +151,14 @@ def store_showtimes(schedule, *, clean=True):
         print("The list of new showtimes was empty. This is likely due to the showtimes found lacking IDs.")
         return [], []
 
-    runtime_overrides = load_all_runtime_overrides()
-
     with db.connection() as conn:
+        # Intentionally omitting the runtime overrides, so the raw value can be updated.
         where = {"theater": schedule.theater, "start_time": [("between", schedule.start, schedule.end + timedelta(days=1))]}
         current_showtimes_by_id = {s["id"]: s for s in _read_showtimes_query(conn.select("showtimes", where=where))}
 
         now = datetime.now(timezone.utc).replace(microsecond=0)
         to_insert, to_delete = [], []
         for new_showtime in new_showtimes:
-            new_showtime = _apply_runtime_override(new_showtime, runtime_overrides)
-
             current_showtime = current_showtimes_by_id.pop(new_showtime["id"], None)
 
             # Fandango screens are added later. This ensures their omission
@@ -212,17 +219,21 @@ def show_movie(title, *, client_id):
 
 
 def load_schedule(first_time, last_time, *, client_id):
+    runtime_overrides = load_all_runtime_overrides()
+
     where = {"client": client_id, "start_time": [("between", first_time, last_time)]}
     with db.connection() as conn:
         raw_result = conn.select("schedule", where=where, order_by="start_time")
-    return _read_schedule_query(raw_result)
+    return _read_schedule_query(raw_result, runtime_overrides=runtime_overrides)
 
 
 def load_whole_schedule(*, client_id):
+    runtime_overrides = load_all_runtime_overrides()
+    
     where = {"client": client_id}
     with db.connection() as conn:
         raw_result = conn.select("schedule", where=where, order_by="start_time")
-    return _read_schedule_query(raw_result, clean=False)
+    return _read_schedule_query(raw_result, clean=False, runtime_overrides=runtime_overrides)
 
 
 def add_to_schedule(showtime, *, client_id):
@@ -381,8 +392,10 @@ def load_titles():
 
 
 def title_showtimes(title):
+    runtime_overrides = load_all_runtime_overrides()
     with db.connection() as conn:
-        return _read_showtimes_query(conn.select("showtimes", where={"title": title}))
+        raw_result = conn.select("showtimes", where={"title": title})
+    return _read_showtimes_query(raw_result, runtime_overrides=runtime_overrides)
 
 
 def filter_showtimes(title, *, theaters=[], start_range=(None, None)):
@@ -398,8 +411,10 @@ def filter_showtimes(title, *, theaters=[], start_range=(None, None)):
         if start_time_filter:
             where["start_time"] = start_time_filter
 
+    runtime_overrides = load_all_runtime_overrides()
     with db.connection() as conn:
-        return _read_showtimes_query(conn.select("showtimes", where=where))
+        raw_result = conn.select("showtimes", where=where)
+    return _read_showtimes_query(raw_result, runtime_overrides=runtime_overrides)
 
 
 def _init_db():
